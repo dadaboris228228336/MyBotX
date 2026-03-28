@@ -40,6 +40,10 @@ class BotMainWindow:
         self.bluestacks = BlueStacksManager()
         self.adb = AdvancedADBManager()
 
+        # Удаляем PID файл при закрытии пользователем (без выключения BS)
+        self._pid_file = Path(__file__).parent / "temp" / "mybotx.pid"
+        self.root.protocol("WM_DELETE_WINDOW", self._on_close_user)
+
         self._build_ui()
 
     # ─────────────────────────────────────────────
@@ -93,14 +97,16 @@ class BotMainWindow:
 
         # Создаём фреймы вкладок
         self.frames = {
-            "main":  tk.Frame(self.tab_content, bg=THEME["bg_main"]),
-            "check": tk.Frame(self.tab_content, bg=THEME["bg_main"]),
-            "about": tk.Frame(self.tab_content, bg=THEME["bg_main"]),
+            "main":     tk.Frame(self.tab_content, bg=THEME["bg_main"]),
+            "check":    tk.Frame(self.tab_content, bg=THEME["bg_main"]),
+            "bot":      tk.Frame(self.tab_content, bg=THEME["bg_main"]),
+            "settings": tk.Frame(self.tab_content, bg=THEME["bg_main"]),
+            "about":    tk.Frame(self.tab_content, bg=THEME["bg_main"]),
         }
 
         # Кнопки вкладок
         self.tab_buttons = {}
-        tabs = [("main", "🏠  ОСНОВНОЕ"), ("check", "🔍  ПРОВЕРКА"), ("about", "ℹ️  О ПРОГРАММЕ")]
+        tabs = [("main", "🏠  ОСНОВНОЕ"), ("check", "🔍  ПРОВЕРКА"), ("bot", "🤖  БОТ"), ("settings", "⚙️  НАСТРОЙКИ"), ("about", "ℹ️  О ПРОГРАММЕ")]
         for key, label in tabs:
             btn = tk.Button(
                 tab_bar,
@@ -125,6 +131,8 @@ class BotMainWindow:
         # Наполняем вкладки
         self._build_main_tab()
         self._build_check_tab()
+        self._build_bot_tab()
+        self._build_settings_tab()
         self._build_about_tab()
 
         # Показываем первую вкладку
@@ -179,12 +187,14 @@ class BotMainWindow:
         stats = tk.Frame(frame, bg=THEME["bg_panel"])
         stats.pack(side=tk.BOTTOM, fill=tk.X, padx=0, pady=0)
 
+        self.stats_labels = {}
         for text, val in [("BlueStacks", "—"), ("ADB", "—"), ("Игра", "—")]:
             col = tk.Frame(stats, bg=THEME["bg_panel"])
             col.pack(side=tk.LEFT, expand=True, pady=10)
             create_label(col, text, style="dim", bg=THEME["bg_panel"]).pack()
             lbl = create_label(col, val, style="normal", bg=THEME["bg_panel"])
             lbl.pack()
+            self.stats_labels[text] = lbl
 
     # ─────────────────────────────────────────────
     # ВКЛАДКА: ПРОВЕРКА
@@ -265,6 +275,376 @@ class BotMainWindow:
         self.log_text.tag_config("warning", foreground=THEME["accent_orange"])
         self.log_text.tag_config("info",    foreground=THEME["accent_blue"])
         self.log_text.tag_config("dim",     foreground=THEME["text_secondary"])
+
+    # ─────────────────────────────────────────────
+    # ВКЛАДКА: БОТ
+    # ─────────────────────────────────────────────
+
+    def _build_bot_tab(self):
+        frame = self.frames["bot"]
+
+        # Левая панель — управление
+        left = tk.Frame(frame, bg=THEME["bg_panel"], width=260)
+        left.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 8))
+        left.pack_propagate(False)
+
+        create_label(left, "⚙️ Управление ботом", style="header", bg=THEME["bg_panel"]).pack(pady=(12, 8), padx=10, anchor="w")
+        create_separator(left).pack(fill=tk.X, padx=10)
+
+        # Кнопки действий
+        actions = [
+            ("📸 Скриншот",          self._bot_screenshot),
+            ("✂️ Вырезать паттерн",  self._bot_crop_pattern),
+            ("💰 Собрать ресурсы",   self._bot_collect),
+            ("⚔️ Начать атаку",      self._bot_attack),
+            ("❌ Закрыть окно",      self._bot_close_popup),
+        ]
+        for label, cmd in actions:
+            create_button(left, label, cmd, width=24).pack(pady=4, padx=10)
+
+        create_separator(left).pack(fill=tk.X, padx=10, pady=8)
+
+        # Список паттернов
+        create_label(left, "🖼️ Паттерны", style="dim", bg=THEME["bg_panel"]).pack(padx=10, anchor="w")
+        self._refresh_patterns_list(left)
+
+        # Правая панель — превью скриншота + лог
+        right = tk.Frame(frame, bg=THEME["bg_main"])
+        right.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        # Превью
+        preview_frame = tk.Frame(right, bg=THEME["bg_card"], height=200)
+        preview_frame.pack(fill=tk.X, pady=(0, 8))
+        preview_frame.pack_propagate(False)
+
+        self.bot_preview_label = tk.Label(
+            preview_frame,
+            text="📸 Скриншот появится здесь",
+            bg=THEME["bg_card"],
+            fg=THEME["text_secondary"],
+            font=THEME["font_normal"]
+        )
+        self.bot_preview_label.pack(expand=True)
+
+        # Лог бота
+        self.bot_log = scrolledtext.ScrolledText(
+            right,
+            wrap=tk.WORD,
+            font=THEME["font_log"],
+            bg=THEME["bg_input"],
+            fg=THEME["text_primary"],
+            relief=tk.FLAT,
+            bd=0,
+            height=10,
+        )
+        self.bot_log.pack(fill=tk.BOTH, expand=True)
+        self.bot_log.tag_config("success", foreground=THEME["accent_green"])
+        self.bot_log.tag_config("error",   foreground=THEME["accent_red"])
+        self.bot_log.tag_config("warning", foreground=THEME["accent_orange"])
+        self.bot_log.tag_config("info",    foreground=THEME["accent_blue"])
+
+    def _refresh_patterns_list(self, parent):
+        """Показывает список паттернов из папки patterns/"""
+        from pathlib import Path
+        patterns_dir = Path(__file__).parent / "processes" / "BOT" / "patterns"
+        files = list(patterns_dir.glob("*.png"))
+        if files:
+            for f in files:
+                create_label(parent, f"  • {f.stem}", style="dim", bg=THEME["bg_panel"]).pack(anchor="w", padx=10)
+        else:
+            create_label(parent, "  Нет паттернов", style="dim", bg=THEME["bg_panel"]).pack(anchor="w", padx=10)
+
+    def _bot_log(self, msg: str, tag: str = "info"):
+        """Лог в окно бота"""
+        self.root.after(0, lambda: self._bot_append_log(msg, tag))
+
+    def _bot_append_log(self, msg: str, tag: str):
+        self.bot_log.insert(tk.END, msg + "\n", tag)
+        self.bot_log.see(tk.END)
+
+    def _bot_screenshot(self):
+        """Сделать скриншот и показать превью"""
+        if not self.adb.connected_device:
+            self._bot_log("❌ Устройство не подключено. Нажмите СТАРТ сначала.", "error")
+            return
+        threading.Thread(target=self._bot_screenshot_thread, daemon=True).start()
+
+    def _bot_screenshot_thread(self):
+        try:
+            from processes.BOT.bot_01_screenshot import BotScreenshot
+            from PIL import Image, ImageTk
+            import io
+
+            self._bot_log("📸 Делаем скриншот...", "info")
+            ss = BotScreenshot(self.adb.connected_device, self._bot_log)
+            arr = ss.capture()
+
+            if arr is None:
+                return
+
+            # Показываем превью
+            img = Image.fromarray(arr[:, :, ::-1])
+            img.thumbnail((600, 190))
+            photo = ImageTk.PhotoImage(img)
+
+            # Сохраняем последний скриншот для вырезки паттерна
+            self._last_screenshot = arr
+            self._last_screenshot_img = img.copy()
+
+            self.root.after(0, lambda: self._show_preview(photo))
+            self._bot_log("✅ Скриншот готов. Можно вырезать паттерн.", "success")
+
+        except Exception as e:
+            self._bot_log(f"❌ Ошибка: {e}", "error")
+
+    def _show_preview(self, photo):
+        self.bot_preview_label.config(image=photo, text="")
+        self.bot_preview_label.image = photo  # Держим ссылку
+
+    def _bot_crop_pattern(self):
+        """Открыть диалог вырезки паттерна"""
+        if not hasattr(self, "_last_screenshot_img"):
+            self._bot_log("❌ Сначала сделайте скриншот!", "error")
+            return
+        threading.Thread(target=self._open_crop_dialog, daemon=True).start()
+
+    def _open_crop_dialog(self):
+        """Диалог выбора области для паттерна"""
+        from pathlib import Path
+        import tkinter.simpledialog as sd
+
+        name = sd.askstring("Паттерн", "Введите имя паттерна (например: btn_attack):",
+                            parent=self.root)
+        if not name:
+            return
+
+        # Открываем окно выбора области
+        self.root.after(0, lambda: self._crop_window(name))
+
+    def _crop_window(self, pattern_name: str):
+        """Окно с выбором области на скриншоте"""
+        from PIL import ImageTk
+        import tkinter.messagebox as mb
+
+        win = tk.Toplevel(self.root)
+        win.title(f"Вырезать паттерн: {pattern_name}")
+        win.configure(bg=THEME["bg_main"])
+
+        create_label(win, "Нарисуйте прямоугольник вокруг кнопки", style="dim", bg=THEME["bg_main"]).pack(pady=4)
+
+        img = self._last_screenshot_img.copy()
+        img.thumbnail((800, 500))
+        photo = ImageTk.PhotoImage(img)
+
+        canvas = tk.Canvas(win, width=img.width, height=img.height, bg=THEME["bg_main"], cursor="crosshair")
+        canvas.pack()
+        canvas.create_image(0, 0, anchor="nw", image=photo)
+        canvas.image = photo
+
+        rect_id = [None]
+        start = [0, 0]
+
+        def on_press(e):
+            start[0], start[1] = e.x, e.y
+            if rect_id[0]:
+                canvas.delete(rect_id[0])
+
+        def on_drag(e):
+            if rect_id[0]:
+                canvas.delete(rect_id[0])
+            rect_id[0] = canvas.create_rectangle(
+                start[0], start[1], e.x, e.y,
+                outline=THEME["accent_green"], width=2
+            )
+
+        def on_release(e):
+            x1, y1 = min(start[0], e.x), min(start[1], e.y)
+            x2, y2 = max(start[0], e.x), max(start[1], e.y)
+
+            if x2 - x1 < 5 or y2 - y1 < 5:
+                return
+
+            # Масштабируем координаты обратно к оригинальному скриншоту
+            orig = self._last_screenshot_img
+            scale_x = orig.width / img.width
+            scale_y = orig.height / img.height
+            rx1, ry1 = int(x1 * scale_x), int(y1 * scale_y)
+            rx2, ry2 = int(x2 * scale_x), int(y2 * scale_y)
+
+            cropped = orig.crop((rx1, ry1, rx2, ry2))
+            save_path = Path(__file__).parent / "processes" / "BOT" / "patterns" / f"{pattern_name}.png"
+            cropped.save(save_path)
+
+            self._bot_log(f"✅ Паттерн сохранён: {pattern_name}.png ({rx2-rx1}x{ry2-ry1}px)", "success")
+            win.destroy()
+
+        canvas.bind("<ButtonPress-1>", on_press)
+        canvas.bind("<B1-Motion>", on_drag)
+        canvas.bind("<ButtonRelease-1>", on_release)
+
+    def _bot_collect(self):
+        if not self.adb.connected_device:
+            self._bot_log("❌ Устройство не подключено", "error")
+            return
+        threading.Thread(target=self._bot_collect_thread, daemon=True).start()
+
+    def _bot_collect_thread(self):
+        try:
+            from processes.BOT.bot_04_actions import BotActions
+            actions = BotActions(self.adb.connected_device, self._bot_log)
+            actions.collect_resources()
+        except Exception as e:
+            self._bot_log(f"❌ Ошибка: {e}", "error")
+
+    def _bot_attack(self):
+        if not self.adb.connected_device:
+            self._bot_log("❌ Устройство не подключено", "error")
+            return
+        threading.Thread(target=self._bot_attack_thread, daemon=True).start()
+
+    def _bot_attack_thread(self):
+        try:
+            from processes.BOT.bot_04_actions import BotActions
+            actions = BotActions(self.adb.connected_device, self._bot_log)
+            actions.start_attack()
+        except Exception as e:
+            self._bot_log(f"❌ Ошибка: {e}", "error")
+
+    def _bot_close_popup(self):
+        if not self.adb.connected_device:
+            self._bot_log("❌ Устройство не подключено", "error")
+            return
+        threading.Thread(target=self._bot_close_thread, daemon=True).start()
+
+    def _bot_close_thread(self):
+        try:
+            from processes.BOT.bot_04_actions import BotActions
+            actions = BotActions(self.adb.connected_device, self._bot_log)
+            actions.close_popup()
+        except Exception as e:
+            self._bot_log(f"❌ Ошибка: {e}", "error")
+
+    def _on_close_user(self):
+        """Пользователь закрыл окно — удаляем PID, BlueStacks НЕ трогаем"""
+        try:
+            if self._pid_file.exists():
+                self._pid_file.unlink()
+        except Exception:
+            pass
+        self.root.destroy()
+
+    # ─────────────────────────────────────────────
+    # ВКЛАДКА: НАСТРОЙКИ
+    # ─────────────────────────────────────────────
+
+    def _build_settings_tab(self):
+        import json
+        frame = self.frames["settings"]
+
+        scroll = tk.Frame(frame, bg=THEME["bg_main"])
+        scroll.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+
+        create_label(scroll, "⚙️ Настройки MyBotX", style="header", bg=THEME["bg_main"]).pack(anchor="w", pady=(0, 10))
+        create_separator(scroll).pack(fill=tk.X, pady=(0, 16))
+
+        # Загружаем config.json
+        config_path = Path(__file__).parent.parent / "CONFIG" / "config.json"
+        try:
+            with open(config_path, encoding="utf-8") as f:
+                config = json.load(f)
+        except Exception:
+            config = {}
+
+        adb_cfg = config.get("technical_config", {}).get("adb_settings", {})
+
+        # ── ADB настройки ──
+        create_label(scroll, "🔌 ADB", style="dim", bg=THEME["bg_main"]).pack(anchor="w", pady=(0, 4))
+
+        row1 = tk.Frame(scroll, bg=THEME["bg_main"])
+        row1.pack(fill=tk.X, pady=4)
+        create_label(row1, "Таймаут порта (сек):", style="normal", bg=THEME["bg_main"], width=22, anchor="w").pack(side=tk.LEFT)
+        self.cfg_timeout = tk.Entry(row1, bg=THEME["bg_input"], fg=THEME["accent_blue"],
+                                    font=THEME["font_normal"], relief=tk.FLAT, width=8,
+                                    insertbackground=THEME["accent_green"])
+        self.cfg_timeout.insert(0, str(adb_cfg.get("timeout", 1.0)))
+        self.cfg_timeout.pack(side=tk.LEFT, padx=8)
+
+        row2 = tk.Frame(scroll, bg=THEME["bg_main"])
+        row2.pack(fill=tk.X, pady=4)
+        create_label(row2, "Макс. ожидание (сек):", style="normal", bg=THEME["bg_main"], width=22, anchor="w").pack(side=tk.LEFT)
+        self.cfg_max_wait = tk.Entry(row2, bg=THEME["bg_input"], fg=THEME["accent_blue"],
+                                     font=THEME["font_normal"], relief=tk.FLAT, width=8,
+                                     insertbackground=THEME["accent_green"])
+        self.cfg_max_wait.insert(0, str(adb_cfg.get("max_wait", 15)))
+        self.cfg_max_wait.pack(side=tk.LEFT, padx=8)
+
+        create_separator(scroll).pack(fill=tk.X, pady=12)
+
+        # ── BlueStacks настройки ──
+        create_label(scroll, "📱 BlueStacks", style="dim", bg=THEME["bg_main"]).pack(anchor="w", pady=(0, 4))
+
+        bs_path = config.get("bluestacks", {}).get("path", "")
+        row3 = tk.Frame(scroll, bg=THEME["bg_main"])
+        row3.pack(fill=tk.X, pady=4)
+        create_label(row3, "Путь к HD-Player.exe:", style="normal", bg=THEME["bg_main"], width=22, anchor="w").pack(side=tk.LEFT)
+        self.cfg_bs_path = tk.Entry(row3, bg=THEME["bg_input"], fg=THEME["accent_blue"],
+                                    font=THEME["font_normal"], relief=tk.FLAT, width=40,
+                                    insertbackground=THEME["accent_green"])
+        self.cfg_bs_path.insert(0, bs_path)
+        self.cfg_bs_path.pack(side=tk.LEFT, padx=8)
+
+        create_separator(scroll).pack(fill=tk.X, pady=12)
+
+        # ── Бот настройки ──
+        create_label(scroll, "🤖 Бот", style="dim", bg=THEME["bg_main"]).pack(anchor="w", pady=(0, 4))
+
+        row4 = tk.Frame(scroll, bg=THEME["bg_main"])
+        row4.pack(fill=tk.X, pady=4)
+        create_label(row4, "Порог паттерна (0-1):", style="normal", bg=THEME["bg_main"], width=22, anchor="w").pack(side=tk.LEFT)
+        self.cfg_threshold = tk.Entry(row4, bg=THEME["bg_input"], fg=THEME["accent_blue"],
+                                      font=THEME["font_normal"], relief=tk.FLAT, width=8,
+                                      insertbackground=THEME["accent_green"])
+        self.cfg_threshold.insert(0, "0.8")
+        self.cfg_threshold.pack(side=tk.LEFT, padx=8)
+
+        row5 = tk.Frame(scroll, bg=THEME["bg_main"])
+        row5.pack(fill=tk.X, pady=4)
+        create_label(row5, "Пауза между действиями:", style="normal", bg=THEME["bg_main"], width=22, anchor="w").pack(side=tk.LEFT)
+        self.cfg_action_delay = tk.Entry(row5, bg=THEME["bg_input"], fg=THEME["accent_blue"],
+                                         font=THEME["font_normal"], relief=tk.FLAT, width=8,
+                                         insertbackground=THEME["accent_green"])
+        self.cfg_action_delay.insert(0, "1.0")
+        self.cfg_action_delay.pack(side=tk.LEFT, padx=8)
+
+        create_separator(scroll).pack(fill=tk.X, pady=12)
+
+        # Кнопка сохранить
+        create_button(scroll, "💾  Сохранить настройки",
+                      command=self._save_settings, style="start", width=26).pack(anchor="w")
+
+        self.settings_status = create_label(scroll, "", style="dim", bg=THEME["bg_main"])
+        self.settings_status.pack(anchor="w", pady=6)
+
+    def _save_settings(self):
+        import json
+        config_path = Path(__file__).parent.parent / "CONFIG" / "config.json"
+        try:
+            with open(config_path, encoding="utf-8") as f:
+                config = json.load(f)
+
+            config.setdefault("technical_config", {}).setdefault("adb_settings", {})
+            config["technical_config"]["adb_settings"]["timeout"] = float(self.cfg_timeout.get())
+            config["technical_config"]["adb_settings"]["max_wait"] = int(self.cfg_max_wait.get())
+            config.setdefault("bluestacks", {})["path"] = self.cfg_bs_path.get()
+            config.setdefault("bot_settings", {})["threshold"] = float(self.cfg_threshold.get())
+            config["bot_settings"]["action_delay"] = float(self.cfg_action_delay.get())
+
+            with open(config_path, "w", encoding="utf-8") as f:
+                json.dump(config, f, indent=2, ensure_ascii=False)
+
+            self.settings_status.config(text="✅ Настройки сохранены!", fg=THEME["accent_green"])
+        except Exception as e:
+            self.settings_status.config(text=f"❌ Ошибка: {e}", fg=THEME["accent_red"])
 
     # ─────────────────────────────────────────────
     # ВКЛАДКА: О ПРОГРАММЕ
@@ -423,34 +803,46 @@ class BotMainWindow:
 
         if not self.bluestacks.is_installed():
             self._set_status("❌ BlueStacks не установлен", "error")
+            self._set_stat("BlueStacks", "❌ Нет", "error")
             return
 
         if not self.bluestacks.is_running():
             self._set_status("⚙️ Запускаем BlueStacks...", "warning")
+            self._set_stat("BlueStacks", "⚙️ Запуск...", "warning")
             success, _ = self.bluestacks.launch()
             if not success:
                 self._set_status("❌ Не удалось запустить BlueStacks", "error")
+                self._set_stat("BlueStacks", "❌ Ошибка", "error")
                 return
             time.sleep(15)
 
+        self._set_stat("BlueStacks", "✅ Запущен", "success")
         self._set_status("🔌 Подключаемся к ADB...", "info")
+        self._set_stat("ADB", "⏳ Подключение...", "warning")
+
         success, serial = self.adb.connect_to_bluestacks_with_wait(
             wait_timeout=15, retry_interval=2
         )
         if not success:
             self._set_status("❌ Не удалось подключиться к ADB", "error")
+            self._set_stat("ADB", "❌ Ошибка", "error")
             return
 
+        self._set_stat("ADB", f"✅ {serial}", "success")
         self._set_status("🎮 Запускаем Clash of Clans...", "info")
+        self._set_stat("Игра", "⏳ Запуск...", "warning")
+
         success = self.adb.launch_app("com.supercell.clashofclans", "com.supercell.titan.GameApp")
 
         if success:
             self._set_status("✅ Clash of Clans запущен!", "success")
+            self._set_stat("Игра", "✅ Запущена", "success")
             self.root.after(0, lambda: self.header_status.config(
                 text="● РАБОТАЕТ", fg=THEME["accent_green"]
             ))
         else:
             self._set_status("❌ Ошибка при запуске игры", "error")
+            self._set_stat("Игра", "❌ Ошибка", "error")
 
         self.root.after(0, lambda: self.start_btn.config(state=tk.NORMAL))
 
@@ -464,6 +856,19 @@ class BotMainWindow:
     def _append_log(self, message: str, tag: str):
         self.log_text.insert(tk.END, message + "\n", tag)
         self.log_text.see(tk.END)
+
+    def _set_stat(self, key: str, text: str, style: str = "normal"):
+        """Обновить статус-метку внизу главной вкладки"""
+        colors = {
+            "success": THEME["accent_green"],
+            "error":   THEME["accent_red"],
+            "warning": THEME["accent_orange"],
+            "info":    THEME["accent_blue"],
+            "normal":  THEME["text_primary"],
+        }
+        fg = colors.get(style, THEME["text_primary"])
+        if hasattr(self, "stats_labels") and key in self.stats_labels:
+            self.root.after(0, lambda t=text, c=fg: self.stats_labels[key].config(text=t, fg=c))
 
     def _set_status(self, text: str, style: str = "normal"):
         colors = {

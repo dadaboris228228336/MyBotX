@@ -1,5 +1,6 @@
 @echo off
 chcp 65001 >nul
+setlocal enabledelayedexpansion
 title MyBotX 1.0 Launcher
 color 0A
 cls
@@ -10,9 +11,19 @@ echo     🚀 MyBotX 1.0 Launcher
 echo ════════════════════════════════════════════════════════
 echo.
 
+set "PID_FILE=CORE\temp\mybotx.pid"
 set "PYTHON_INSTALLER=BOT_APPLICATIONS\python-3.10.11-amd64.exe"
 set "BLUESTACKS_INSTALLER=BOT_APPLICATIONS\BlueStacksInstaller_5.22.130.1019_amd64_native.exe"
 set "WHEELS_DIR=BOT_APPLICATIONS\wheels"
+
+REM ══════════════════════════════════════
+REM ПРОВЕРКА: уже запущен? Убиваем всё
+REM ══════════════════════════════════════
+echo 🔄 Закрываем предыдущие экземпляры MyBotX...
+taskkill /IM "python.exe" /F >nul 2>&1
+taskkill /IM "pythonw.exe" /F >nul 2>&1
+if exist "%PID_FILE%" del "%PID_FILE%" >nul 2>&1
+timeout /t 1 /nobreak >nul
 
 REM ══════════════════════════════════════
 REM ЭТАП 1: PYTHON
@@ -125,6 +136,10 @@ echo.
 
 cd /d "%~dp0CORE"
 start /min python main.py
+
+REM Сохраняем PID — ждём секунду и берём последний запущенный python.exe
+timeout /t 2 /nobreak >nul
+powershell -Command "$p = Get-Process python | Sort-Object StartTime | Select-Object -Last 1; if($p){$p.Id | Out-File -FilePath '%~dp0%PID_FILE%' -Encoding ascii -NoNewline}"
 
 echo ✅ MyBotX запущен!
 echo.
