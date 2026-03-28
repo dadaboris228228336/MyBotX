@@ -1,14 +1,14 @@
 {
   "application": {
     "name": "MyBotX",
-    "version": "3.0.0",
+    "version": "1.0.0",
     "description": "Бот для автоматизации Clash of Clans через BlueStacks с GUI управлением",
-    "author": "MyBotX Team",
+    "author": "Mihasa",
     "python_version": "3.10+",
     "created_date": "2026-01-27",
     "last_updated": "2026-02-01",
     "platform": "Windows",
-    "license": "MIT"
+    "license": "none"
   },
   "project_structure": {
     "launcher": {
@@ -136,7 +136,7 @@
   },
   "bluestacks": {
     "path": "C:\\Program Files\\BlueStacks_nxt\\HD-Player.exe",
-    "cached_at": "2026-02-01 17:01:39",
+    "cached_at": "2026-03-28 12:22:27",
     "auto_detected": true
   }
 }

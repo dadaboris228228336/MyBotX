@@ -1,23 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-
 """
-🖥️ MyBot GUI v3.0.0 - Главное приложение с графическим интерфейсом
-
-ОСНОВНЫЕ ПРОЦЕССЫ ПО ПОРЯДКУ:
-1. Инициализация GUI (создание окна, импорт модулей, настройка менеджеров)
-2. Настройка стилей (темы, шрифты, цвета)
-3. Создание виджетов (вкладки, кнопки, текстовые поля)
-4. Создание вкладки ПРОВЕРКА (кнопки управления, статус, логи)
-5. Создание вкладки ОСНОВНОЕ (кнопка СТАРТ, статусбар)
-6. Создание вкладки О ПРОГРАММЕ (информация о версии)
-7. Обработка кнопки "Проверить всё" (запуск проверки в потоке)
-8. Проверка зависимостей в потоке (Python пакеты + BlueStacks)
-9. Обработка кнопки "Установить пакеты" (установка через pip)
-10. Обработка кнопки СТАРТ (запуск игры)
-11. Запуск бота в потоке (проверка BS -> подключение ADB -> запуск игры)
-12. Обновление UI (логи, статусы, прогресс-бар)
-13. Очистка логов (сброс всех сообщений)
+🖥️ MyBotX GUI v3.0.0 - Геймерский интерфейс
 """
 
 import sys
@@ -25,511 +9,483 @@ import time
 import tkinter as tk
 import threading
 from pathlib import Path
-from tkinter import ttk, scrolledtext, messagebox
+from tkinter import scrolledtext
 
 try:
     from dependency_checker import DependencyChecker
     from bluestacks_manager import BlueStacksManager
     from advanced_adb_manager import AdvancedADBManager
+    from UI.theme import THEME
+    from UI.widgets import create_button, create_label, create_frame, create_separator
 except ImportError:
-    # Если не получается импортировать, добавляем путь
     sys.path.insert(0, str(Path(__file__).parent))
     from dependency_checker import DependencyChecker
     from bluestacks_manager import BlueStacksManager
     from advanced_adb_manager import AdvancedADBManager
+    from UI.theme import THEME
+    from UI.widgets import create_button, create_label, create_frame, create_separator
 
 
 class BotMainWindow:
-    """Главное окно приложения бота с автопоиском BlueStacks"""
 
     def __init__(self, root):
-        """ПРОЦЕСС 1: Инициализация GUI (окно, менеджеры, автопоиск BlueStacks)"""
         self.root = root
-        self.root.title("MyBot - Управление зависимостями")
-        self.root.geometry("900x600")
+        self.root.title("MyBotX v3.0.0")
+        self.root.geometry("960x620")
+        self.root.configure(bg=THEME["bg_main"])
+        self.root.resizable(False, False)
 
         self.checker = None
         self.is_checking = False
-
-        # ← Автоматический поиск при инициализации!
         self.bluestacks = BlueStacksManager()
         self.adb = AdvancedADBManager()
 
-        self.setup_styles()
-        self.create_widgets()
+        self._build_ui()
 
-    def setup_styles(self):
-        """ПРОЦЕСС 2: Настройка визуальных стилей (темы, шрифты, цвета)"""
-        style = ttk.Style()
+    # ─────────────────────────────────────────────
+    # ПОСТРОЕНИЕ UI
+    # ─────────────────────────────────────────────
 
-        try:
-            style.theme_use('clam')
-        except tk.TclError:
-            pass
+    def _build_ui(self):
+        """Строим весь интерфейс"""
+        self._build_header()
+        self._build_tabs()
 
-        style.configure('TNotebook', background='#f0f0f0')
-        style.configure('TNotebook.Tab', padding=[20, 10])
-        style.configure('Header.TLabel', font=('Arial', 14, 'bold'))
-        style.configure('Status.TLabel', font=('Arial', 10))
+    def _build_header(self):
+        """Шапка с логотипом и версией"""
+        header = tk.Frame(self.root, bg=THEME["bg_panel"], height=60)
+        header.pack(fill=tk.X)
+        header.pack_propagate(False)
 
-    def create_widgets(self):
-        """ПРОЦЕСС 3: Создание основных виджетов интерфейса (вкладки, заголовок)"""
-        header_frame = ttk.Frame(self.root)
-        header_frame.pack(fill=tk.X, padx=10, pady=10)
+        create_label(
+            header,
+            text="⚡ MyBotX",
+            style="title",
+            bg=THEME["bg_panel"]
+        ).pack(side=tk.LEFT, padx=20, pady=10)
 
-        header_label = ttk.Label(
-            header_frame,
-            text="🤖 MyBot - Управление зависимостями",
-            style='Header.TLabel'
+        create_label(
+            header,
+            text="v3.0.0  |  Clash of Clans Bot",
+            style="dim",
+            bg=THEME["bg_panel"]
+        ).pack(side=tk.LEFT, pady=10)
+
+        # Статус-индикатор справа
+        self.header_status = create_label(
+            header,
+            text="● ГОТОВ",
+            style="success",
+            bg=THEME["bg_panel"]
         )
-        header_label.pack(side=tk.LEFT)
+        self.header_status.pack(side=tk.RIGHT, padx=20)
 
-        self.notebook = ttk.Notebook(self.root)
-        self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        create_separator(self.root).pack(fill=tk.X)
 
-        self.create_main_tab()
-        self.create_check_tab()
-        self.create_about_tab()
+    def _build_tabs(self):
+        """Вкладки: ОСНОВНОЕ | ПРОВЕРКА | О ПРОГРАММЕ"""
+        # Панель вкладок
+        tab_bar = tk.Frame(self.root, bg=THEME["bg_main"])
+        tab_bar.pack(fill=tk.X, padx=0, pady=0)
 
-    def create_check_tab(self):
-        """ПРОЦЕСС 4: Создание вкладки ПРОВЕРКА (кнопки, статус, логи)"""
-        check_frame = ttk.Frame(self.notebook)
-        self.notebook.add(check_frame, text="✓ ПРОВЕРКА")
+        self.tab_content = tk.Frame(self.root, bg=THEME["bg_main"])
+        self.tab_content.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
-        # Верхняя панель с кнопками управления
-        button_frame = ttk.LabelFrame(
-            check_frame,
-            text="Управление",
-            padding=10
+        # Создаём фреймы вкладок
+        self.frames = {
+            "main":  tk.Frame(self.tab_content, bg=THEME["bg_main"]),
+            "check": tk.Frame(self.tab_content, bg=THEME["bg_main"]),
+            "about": tk.Frame(self.tab_content, bg=THEME["bg_main"]),
+        }
+
+        # Кнопки вкладок
+        self.tab_buttons = {}
+        tabs = [("main", "🏠  ОСНОВНОЕ"), ("check", "🔍  ПРОВЕРКА"), ("about", "ℹ️  О ПРОГРАММЕ")]
+        for key, label in tabs:
+            btn = tk.Button(
+                tab_bar,
+                text=label,
+                bg=THEME["bg_panel"],
+                fg=THEME["text_secondary"],
+                font=THEME["font_normal"],
+                relief=tk.FLAT,
+                bd=0,
+                padx=20,
+                pady=10,
+                cursor="hand2",
+                command=lambda k=key: self._switch_tab(k),
+                activebackground=THEME["bg_card"],
+                activeforeground=THEME["accent_blue"],
+            )
+            btn.pack(side=tk.LEFT)
+            self.tab_buttons[key] = btn
+
+        create_separator(self.root).pack(fill=tk.X)
+
+        # Наполняем вкладки
+        self._build_main_tab()
+        self._build_check_tab()
+        self._build_about_tab()
+
+        # Показываем первую вкладку
+        self._switch_tab("main")
+
+    def _switch_tab(self, key):
+        """Переключение вкладки"""
+        for k, frame in self.frames.items():
+            frame.pack_forget()
+        self.frames[key].pack(fill=tk.BOTH, expand=True)
+
+        for k, btn in self.tab_buttons.items():
+            if k == key:
+                btn.config(fg=THEME["accent_blue"], bg=THEME["bg_card"])
+            else:
+                btn.config(fg=THEME["text_secondary"], bg=THEME["bg_panel"])
+
+    # ─────────────────────────────────────────────
+    # ВКЛАДКА: ОСНОВНОЕ
+    # ─────────────────────────────────────────────
+
+    def _build_main_tab(self):
+        frame = self.frames["main"]
+
+        # Центральный блок
+        center = tk.Frame(frame, bg=THEME["bg_main"])
+        center.place(relx=0.5, rely=0.5, anchor="center")
+
+        create_label(center, "⚡ MyBotX", style="title", bg=THEME["bg_main"]).pack(pady=(0, 5))
+        create_label(center, "Clash of Clans Automation Bot", style="dim", bg=THEME["bg_main"]).pack(pady=(0, 30))
+
+        # Кнопка СТАРТ
+        self.start_btn = create_button(
+            center,
+            text="▶   СТАРТ",
+            command=self.on_start_bot,
+            style="start",
+            width=25
         )
-        button_frame.pack(fill=tk.X, padx=10, pady=10)
+        self.start_btn.pack(pady=10, ipady=6)
 
-        # ✅ ИСПРАВЛЕННАЯ КНОПКА - Теперь ищет BlueStacks!
-        self.check_btn = ttk.Button(
-            button_frame,
-            text="🔍 Проверить всё",
-            command=self.on_check_button_click,
-            width=30
+        # Статусбар
+        self.statusbar = create_label(
+            center,
+            text="Готов к запуску",
+            style="dim",
+            bg=THEME["bg_main"]
         )
-        self.check_btn.pack(side=tk.LEFT, padx=5)
+        self.statusbar.pack(pady=(15, 0))
 
-        self.install_btn = ttk.Button(
-            button_frame,
-            text="📦 Установить пакеты",
-            command=self.on_install_button_click,
-            width=30,
-            state=tk.DISABLED
+        # Блок статистики внизу
+        stats = tk.Frame(frame, bg=THEME["bg_panel"])
+        stats.pack(side=tk.BOTTOM, fill=tk.X, padx=0, pady=0)
+
+        for text, val in [("BlueStacks", "—"), ("ADB", "—"), ("Игра", "—")]:
+            col = tk.Frame(stats, bg=THEME["bg_panel"])
+            col.pack(side=tk.LEFT, expand=True, pady=10)
+            create_label(col, text, style="dim", bg=THEME["bg_panel"]).pack()
+            lbl = create_label(col, val, style="normal", bg=THEME["bg_panel"])
+            lbl.pack()
+
+    # ─────────────────────────────────────────────
+    # ВКЛАДКА: ПРОВЕРКА
+    # ─────────────────────────────────────────────
+
+    def _build_check_tab(self):
+        frame = self.frames["check"]
+
+        # Кнопки управления
+        btn_row = tk.Frame(frame, bg=THEME["bg_main"])
+        btn_row.pack(fill=tk.X, pady=(0, 8))
+
+        self.check_btn = create_button(
+            btn_row, "🔍  Проверить всё",
+            command=self.on_check_button_click, width=22
         )
-        self.install_btn.pack(side=tk.LEFT, padx=5)
+        self.check_btn.pack(side=tk.LEFT, padx=(0, 8))
 
-        self.clear_btn = ttk.Button(
-            button_frame,
-            text="🗑️ Очистить логи",
-            command=self.on_clear_logs,
-            width=20
+        self.install_btn = create_button(
+            btn_row, "📦  Установить пакеты",
+            command=self.on_install_button_click, width=22
         )
-        self.clear_btn.pack(side=tk.LEFT, padx=5)
+        self.install_btn.pack(side=tk.LEFT, padx=(0, 8))
+        self.install_btn.config(state=tk.DISABLED, fg=THEME["text_disabled"])
 
-        # Информационная панель со статусом
-        info_frame = ttk.LabelFrame(
-            check_frame,
-            text="Статус",
-            padding=10
+        self.uninstall_btn = create_button(
+            btn_row, "🗑  Удалить пакеты",
+            command=self.on_uninstall_button_click, style="danger", width=18
         )
-        info_frame.pack(fill=tk.X, padx=10, pady=10)
+        self.uninstall_btn.pack(side=tk.LEFT, padx=(0, 8))
 
-        # Статистика пакетов Python
-        status_subframe = ttk.Frame(info_frame)
-        status_subframe.pack(fill=tk.X, pady=5)
+        create_button(
+            btn_row, "🗑  Очистить логи",
+            command=self.on_clear_logs, width=18
+        ).pack(side=tk.LEFT)
 
-        ttk.Label(status_subframe, text="Python пакетов:").pack(
-            side=tk.LEFT, padx=5)
-        self.status_required = ttk.Label(
-            status_subframe,
-            text="—",
-            style='Status.TLabel',
-            foreground="blue"
-        )
-        self.status_required.pack(side=tk.LEFT, padx=5)
+        # Статус-карточки
+        cards = tk.Frame(frame, bg=THEME["bg_main"])
+        cards.pack(fill=tk.X, pady=(0, 8))
 
-        ttk.Label(status_subframe, text="Установлено:").pack(
-            side=tk.LEFT, padx=20)
-        self.status_installed = ttk.Label(
-            status_subframe,
-            text="—",
-            style='Status.TLabel',
-            foreground="green"
-        )
-        self.status_installed.pack(side=tk.LEFT, padx=5)
-
-        ttk.Label(status_subframe, text="Недостаёт:").pack(
-            side=tk.LEFT, padx=20)
-        self.status_missing = ttk.Label(
-            status_subframe,
-            text="—",
-            style='Status.TLabel',
-            foreground="red"
-        )
-        self.status_missing.pack(side=tk.LEFT, padx=5)
-
-        # Статус BlueStacks
-        game_status_frame = ttk.Frame(info_frame)
-        game_status_frame.pack(fill=tk.X, pady=5)
-
-        ttk.Label(game_status_frame, text="BlueStacks:").pack(
-            side=tk.LEFT, padx=5)
-        self.game_status = ttk.Label(
-            game_status_frame,
-            text="—",
-            style='Status.TLabel',
-            foreground="gray"
-        )
-        self.game_status.pack(side=tk.LEFT, padx=5)
-
-        # ✅ НОВОЕ - Статус найденного пути
-        path_status_frame = ttk.Frame(info_frame)
-        path_status_frame.pack(fill=tk.X, pady=5)
-
-        ttk.Label(path_status_frame, text="Путь BlueStacks:").pack(
-            side=tk.LEFT, padx=5)
-        self.path_status = ttk.Label(
-            path_status_frame,
-            text="—",
-            style='Status.TLabel',
-            foreground="blue"
-        )
-        self.path_status.pack(side=tk.LEFT, padx=5)
+        self.status_labels = {}
+        items = [
+            ("packages", "📦 Пакеты", "—"),
+            ("bluestacks", "🖥 BlueStacks", "—"),
+            ("path", "📁 Путь", "—"),
+        ]
+        for key, title, val in items:
+            card = tk.Frame(cards, bg=THEME["bg_card"], padx=12, pady=8)
+            card.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 6))
+            create_label(card, title, style="dim", bg=THEME["bg_card"]).pack(anchor="w")
+            lbl = create_label(card, val, style="normal", bg=THEME["bg_card"])
+            lbl.pack(anchor="w")
+            self.status_labels[key] = lbl
 
         # Прогресс-бар
-        progress_subframe = ttk.Frame(info_frame)
-        progress_subframe.pack(fill=tk.X, pady=5)
+        self.progress_bar = tk.Frame(frame, bg=THEME["accent_blue"], height=2)
+        self.progress_bar.pack(fill=tk.X, pady=(0, 8))
+        self._progress_running = False
 
-        self.progress = ttk.Progressbar(
-            progress_subframe,
-            mode='indeterminate',
-            length=400
-        )
-        self.progress.pack(fill=tk.X)
-
-        # Панель с логами
-        log_frame = ttk.LabelFrame(
-            check_frame,
-            text="Логи проверки",
-            padding=10
-        )
-        log_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        # Лог
+        log_frame = tk.Frame(frame, bg=THEME["bg_input"], padx=2, pady=2)
+        log_frame.pack(fill=tk.BOTH, expand=True)
 
         self.log_text = scrolledtext.ScrolledText(
             log_frame,
             wrap=tk.WORD,
-            height=15,
-            font=('Courier', 9),
-            bg='#f5f5f5'
+            font=THEME["font_log"],
+            bg=THEME["bg_input"],
+            fg=THEME["text_primary"],
+            insertbackground=THEME["accent_green"],
+            selectbackground=THEME["accent_blue"],
+            relief=tk.FLAT,
+            bd=0,
         )
-        self.log_text.pack(fill=tk.BOTH, expand=True)
+        self.log_text.pack(fill=tk.BOTH, expand=True, padx=4, pady=4)
+        self.log_text.tag_config("success", foreground=THEME["accent_green"])
+        self.log_text.tag_config("error",   foreground=THEME["accent_red"])
+        self.log_text.tag_config("warning", foreground=THEME["accent_orange"])
+        self.log_text.tag_config("info",    foreground=THEME["accent_blue"])
+        self.log_text.tag_config("dim",     foreground=THEME["text_secondary"])
 
-        self.log_text.tag_config('success', foreground='green')
-        self.log_text.tag_config('error', foreground='red')
-        self.log_text.tag_config('warning', foreground='orange')
-        self.log_text.tag_config('info', foreground='blue')
+    # ─────────────────────────────────────────────
+    # ВКЛАДКА: О ПРОГРАММЕ
+    # ─────────────────────────────────────────────
 
-    def create_main_tab(self):
-        """ПРОЦЕСС 5: Создание вкладки ОСНОВНОЕ (кнопка СТАРТ, статусбар)"""
-        main_frame = ttk.Frame(self.notebook)
-        self.notebook.add(main_frame, text="🏠 ОСНОВНОЕ")
+    def _build_about_tab(self):
+        frame = self.frames["about"]
 
-        header_label = ttk.Label(
-            main_frame,
-            text="🤖 MyBot",
-            font=('Arial', 24, 'bold')
-        )
-        header_label.pack(pady=50)
+        center = tk.Frame(frame, bg=THEME["bg_main"])
+        center.place(relx=0.5, rely=0.5, anchor="center")
 
-        self.start_btn = ttk.Button(
-            main_frame,
-            text="▶️ СТАРТ",
-            command=self.on_start_bot,
-            width=30
-        )
-        self.start_btn.pack(pady=20)
+        create_label(center, "⚡ MyBotX", style="title", bg=THEME["bg_main"]).pack(pady=(0, 4))
+        create_label(center, "v3.0.0", style="header", bg=THEME["bg_main"]).pack()
 
-        self.statusbar = ttk.Label(
-            main_frame,
-            text="Готово",
-            font=('Arial', 10),
-            foreground="gray"
-        )
-        self.statusbar.pack(pady=10)
+        create_separator(center).pack(fill=tk.X, pady=16)
 
-    def create_about_tab(self):
-        """ПРОЦЕСС 6: Создание вкладки О ПРОГРАММЕ (информация о версии)"""
-        about_frame = ttk.Frame(self.notebook)
-        self.notebook.add(about_frame, text="ℹ️ О программе")
+        info = [
+            ("Игра",      "Clash of Clans"),
+            ("Эмулятор",  "BlueStacks 5"),
+            ("Язык",      "Python 3.10+"),
+            ("Лицензия",  "MIT"),
+            ("Автор",     "Mihasa"),
+        ]
+        for label, value in info:
+            row = tk.Frame(center, bg=THEME["bg_main"])
+            row.pack(fill=tk.X, pady=3)
+            create_label(row, f"{label}:", style="dim", bg=THEME["bg_main"], width=12, anchor="e").pack(side=tk.LEFT)
+            create_label(row, value, style="normal", bg=THEME["bg_main"]).pack(side=tk.LEFT, padx=8)
 
-        infotext = ("MyBot v3.0.0\nPython 3.10+\nMIT License\n\n"
-                    "С автоматическим поиском BlueStacks!")
-        label = ttk.Label(
-            about_frame,
-            text=infotext,
-            font=('Arial', 10),
-            justify=tk.LEFT
-        )
-        label.pack(padx=20, pady=20)
+    # ─────────────────────────────────────────────
+    # ЛОГИКА КНОПОК
+    # ─────────────────────────────────────────────
 
     def on_check_button_click(self):
-        """ПРОЦЕСС 7: Обработка кнопки 'Проверить всё' (запуск проверки в потоке)"""
         if self.is_checking:
-            messagebox.showwarning("Внимание", "Проверка уже выполняется!")
             return
-
-        thread = threading.Thread(target=self.check_dependencies_thread)
-        thread.daemon = True
+        thread = threading.Thread(target=self._check_thread, daemon=True)
         thread.start()
 
-    def check_dependencies_thread(self):
-        """ПРОЦЕСС 8: Проверка зависимостей в потоке (Python пакеты + BlueStacks)"""
+    def _check_thread(self):
         self.is_checking = True
-
-        self.root.after(0, self.update_ui_checking_start)
+        self.root.after(0, self._ui_start)
 
         try:
-            # ============================================
-            # 1️⃣ ПРОВЕРКА PYTHON ПАКЕТОВ
-            # ============================================
-            self.root.after(0, lambda: self.append_log("=" * 60, 'info'))
-            self.root.after(0, lambda: self.append_log(
-                "🔍 ПРОВЕРКА PYTHON ПАКЕТОВ", 'info'))
-            self.root.after(0, lambda: self.append_log("=" * 60, 'info'))
+            self._log("=" * 50, "dim")
+            self._log("🔍 ПРОВЕРКА PYTHON ПАКЕТОВ", "info")
+            self._log("=" * 50, "dim")
 
             self.checker = DependencyChecker("requirements.txt")
             self.checker.check_dependencies()
 
-            self.root.after(0, self.update_ui_with_results)
+            installed = len(self.checker.installed_packages)
+            missing = len(self.checker.missing_packages)
+            self.root.after(0, lambda: self.status_labels["packages"].config(
+                text=f"✅ {installed} уст. / ❌ {missing} нет",
+                fg=THEME["accent_green"] if missing == 0 else THEME["accent_red"]
+            ))
+            if missing > 0:
+                self.root.after(0, lambda: self.install_btn.config(
+                    state=tk.NORMAL, fg=THEME["accent_blue"]
+                ))
 
-            # ============================================
-            # 2️⃣ АВТОПОИСК И ПРОВЕРКА BlueStacks ✅ НОВОЕ!
-            # ============================================
-            self.root.after(0, lambda: self.append_log("", 'info'))
-            self.root.after(0, lambda: self.append_log("=" * 60, 'info'))
-            self.root.after(0, lambda: self.append_log(
-                "🔍 АВТОПОИСК BlueStacks", 'info'))
-            self.root.after(0, lambda: self.append_log("=" * 60, 'info'))
+            self._log("", "dim")
+            self._log("🔍 ПОИСК BLUESTACKS", "info")
+            self._log("=" * 50, "dim")
 
-            # Проверяем установку
             if self.bluestacks.is_installed():
                 path = self.bluestacks.get_path()
-                self.root.after(0, lambda: self.append_log(
-                    "✅ BlueStacks найден!", 'success'))
-                self.root.after(0, lambda: self.append_log(
-                    "   Путь: {}".format(path), 'info'))
-                self.root.after(0, lambda: self.path_status.config(
-                    text=path, foreground="green"))
-                self.root.after(0, lambda: self.game_status.config(
-                    text="✓ Установлен", foreground="green"))
+                self._log(f"✅ BlueStacks найден: {path}", "success")
+                self.root.after(0, lambda: self.status_labels["bluestacks"].config(
+                    text="✅ Установлен", fg=THEME["accent_green"]
+                ))
+                self.root.after(0, lambda: self.status_labels["path"].config(
+                    text=str(path)[:50], fg=THEME["text_secondary"]
+                ))
             else:
-                self.root.after(0, lambda: self.append_log(
-                    "❌ BlueStacks не найден", 'error'))
-                self.root.after(0, lambda: self.path_status.config(
-                    text="Не найден", foreground="red"))
-                self.root.after(0, lambda: self.game_status.config(
-                    text="✗ Не установлен", foreground="red"))
+                self._log("❌ BlueStacks не найден", "error")
+                self.root.after(0, lambda: self.status_labels["bluestacks"].config(
+                    text="❌ Не найден", fg=THEME["accent_red"]
+                ))
 
-            # Проверяем запущен ли
             if self.bluestacks.is_running():
-                self.root.after(0, lambda: self.append_log(
-                    "✅ BlueStacks запущен", 'success'))
-                self.root.after(0, lambda: self.game_status.config(
-                    text="✓ Запущен", foreground="green"))
-            else:
-                msg = "⚠️ BlueStacks не запущен (но можно запустить)"
-                self.root.after(0, lambda: self.append_log(msg, 'warning'))
-                self.root.after(0, lambda: self.game_status.config(
-                    text="⏸ Не запущен", foreground="orange"))
-
-            # Показываем все найденные пути
-            all_paths = self.bluestacks.get_all_found_paths()
-            if all_paths and len(all_paths) > 1:
-                self.root.after(0, lambda: self.append_log(
-                    "\n📍 Найдено несколько вариантов:", 'info'))
-                for i, path in enumerate(all_paths, 1):
-                    self.root.after(0, lambda p=path, n=i: self.append_log(
-                        "   {}. {}".format(n, p), 'info'))
-
-            self.root.after(0, lambda: self.append_log("", 'info'))
-            self.root.after(0, lambda: self.append_log("=" * 60, 'info'))
-            self.root.after(0, lambda: self.append_log(
-                "✅ ПРОВЕРКА ЗАВЕРШЕНА", 'success'))
-            self.root.after(0, lambda: self.append_log("=" * 60, 'info'))
-
-        except Exception as error:
-            error_msg = str(error)
-            self.root.after(0, lambda: self.append_log(
-                "❌ ОШИБКА: {}".format(error_msg), 'error'))
-
-        finally:
-            self.is_checking = False
-            self.root.after(0, self.update_ui_checking_end)
-
-    def on_install_button_click(self):
-        """ПРОЦЕСС 9: Обработка кнопки 'Установить пакеты' (установка через pip)"""
-        if not self.checker or not self.checker.missing_packages:
-            messagebox.showinfo("Информация", "Нет недостающих пакетов!")
-            return
-
-        thread = threading.Thread(target=self.install_packages_thread)
-        thread.daemon = True
-        thread.start()
-
-    def install_packages_thread(self):
-        """Установка пакетов"""
-        self.is_checking = True
-        self.root.after(0, self.update_ui_checking_start)
-
-        try:
-            self.append_log("Установка пакетов...", 'info')
-
-            if self.checker.install_missing_packages():
-                self.root.after(0, lambda: messagebox.showinfo(
-                    "Успех", "Пакеты установлены!"))
-            else:
-                self.root.after(0, lambda: self.append_log(
-                    "Ошибка при установке пакетов", 'error'))
-                self.root.after(0, lambda: messagebox.showerror(
-                    "Ошибка", "Не удалось установить пакеты!"))
-
-        finally:
-            self.is_checking = False
-            self.root.after(0, self.update_ui_checking_end)
-
-    def on_clear_logs(self):
-        """ПРОЦЕСС 13: Очистка всех логов и сброс статусов"""
-        self.log_text.delete(1.0, tk.END)
-        self.status_required.config(text="—")
-        self.status_installed.config(text="—")
-        self.status_missing.config(text="—")
-        self.game_status.config(text="—", foreground="gray")
-        self.path_status.config(text="—", foreground="gray")
-
-    def on_start_bot(self):
-        """ПРОЦЕСС 10: Обработка кнопки СТАРТ """
-        thread = threading.Thread(target=self.start_bot_thread)
-        thread.daemon = True
-        thread.start()
-
-    def start_bot_thread(self):
-        """ПРОЦЕСС 11: Запуск бота в потоке (проверка BS -> подключение ADB -> запуск игры)"""
-        import time  # Локальный импорт для надежности
-        try:
-            self.root.after(0, lambda: self.statusbar.config(
-                text="🔍 Проверяем BlueStacks...", foreground="blue"
-            ))
-
-            if not self.bluestacks.is_installed():
-                self.root.after(0, lambda: self.statusbar.config(
-                    text="❌ BlueStacks не установлен", foreground="red"
-                ))
-                return
-
-            if not self.bluestacks.is_running():
-                self.root.after(0, lambda: self.statusbar.config(
-                    text="⚙️ Запускаем BlueStacks...", foreground="blue"
-                ))
-                success, message = self.bluestacks.launch()
-
-                if not success:
-                    self.root.after(0, lambda: self.statusbar.config(
-                        text="❌ Не удалось запустить BlueStacks",
-                        foreground="red"
-                    ))
-                    return
-
-                time.sleep(15)
-
-            self.root.after(0, lambda: self.statusbar.config(
-                text="🔌 Подключаемся к ADB...", foreground="blue"
-            ))
-
-            # Быстрая проверка - если BlueStacks не запущен, не тратим время
-            if not self.bluestacks.is_running():
-                self.root.after(0, lambda: self.statusbar.config(
-                    text="❌ BlueStacks не запущен", foreground="red"
-                ))
-                return
-
-            # Если BlueStacks запущен, пробуем подключиться
-            success, serial = self.adb.connect_to_bluestacks_with_wait(
-                wait_timeout=15,  # Короткий таймаут
-                retry_interval=2  # Проверяем чаще
-            )
-
-            if not success:
-                self.root.after(0, lambda: self.statusbar.config(
-                    text="❌ Не удалось подключиться", foreground="red"
-                ))
-                return
-
-            self.root.after(0, lambda: self.statusbar.config(
-                text="🎮 Запускаем Clash of Clans...", foreground="blue"
-            ))
-
-            package = "com.supercell.clashofclans"
-            activity = "com.supercell.titan.GameApp"
-
-            success = self.adb.launch_app(package, activity)
-
-            if success:
-                self.root.after(0, lambda: self.statusbar.config(
-                    text="✅ Clash of Clans запущен!", foreground="green"
+                self._log("✅ BlueStacks запущен", "success")
+                self.root.after(0, lambda: self.status_labels["bluestacks"].config(
+                    text="✅ Запущен", fg=THEME["accent_green"]
                 ))
             else:
-                self.root.after(0, lambda: self.statusbar.config(
-                    text="❌ Ошибка при запуске игры", foreground="red"
-                ))
+                self._log("⚠️ BlueStacks не запущен", "warning")
+
+            self._log("=" * 50, "dim")
+            self._log("✅ ПРОВЕРКА ЗАВЕРШЕНА", "success")
+            self._log("=" * 50, "dim")
 
         except Exception as e:
-            error_msg = str(e)
-            self.root.after(0, lambda: self.statusbar.config(
-                text="❌ Ошибка: {}".format(error_msg), foreground="red"
-            ))
-
+            self._log(f"❌ ОШИБКА: {e}", "error")
         finally:
-            self.root.after(0, lambda: self.start_btn.config(
-                state=tk.NORMAL))
+            self.is_checking = False
+            self.root.after(0, self._ui_end)
 
-    def append_log(self, message: str, tag: str = 'info'):
-        """ПРОЦЕСС 12a: Добавление сообщения в логи (с цветовой разметкой)"""
+    def on_uninstall_button_click(self):
+        thread = threading.Thread(target=self._uninstall_thread, daemon=True)
+        thread.start()
+
+    def _uninstall_thread(self):
+        self.is_checking = True
+        self.root.after(0, self._ui_start)
+        try:
+            self._log("🗑 Удаление пакетов...", "warning")
+            import subprocess
+            packages = ["psutil"]
+            for pkg in packages:
+                result = subprocess.run(
+                    ["pip", "uninstall", pkg, "-y"],
+                    capture_output=True, text=True
+                )
+                if result.returncode == 0:
+                    self._log(f"✅ {pkg} удалён", "success")
+                else:
+                    self._log(f"⚠️ {pkg}: {result.stderr.strip()}", "warning")
+            self._log("✅ Готово", "success")
+        finally:
+            self.is_checking = False
+            self.root.after(0, self._ui_end)
+
+    def on_install_button_click(self):
+        if not self.checker or not self.checker.missing_packages:
+            return
+        thread = threading.Thread(target=self._install_thread, daemon=True)
+        thread.start()
+
+    def _install_thread(self):
+        self.is_checking = True
+        self.root.after(0, self._ui_start)
+        try:
+            self._log("📦 Установка пакетов...", "info")
+            if self.checker.install_missing_packages():
+                self._log("✅ Пакеты установлены!", "success")
+            else:
+                self._log("❌ Ошибка установки", "error")
+        finally:
+            self.is_checking = False
+            self.root.after(0, self._ui_end)
+
+    def on_clear_logs(self):
+        self.log_text.delete(1.0, tk.END)
+        for lbl in self.status_labels.values():
+            lbl.config(text="—", fg=THEME["text_primary"])
+
+    def on_start_bot(self):
+        thread = threading.Thread(target=self._start_thread, daemon=True)
+        thread.start()
+
+    def _start_thread(self):
+        import time
+        self._set_status("🔍 Проверяем BlueStacks...", "info")
+
+        if not self.bluestacks.is_installed():
+            self._set_status("❌ BlueStacks не установлен", "error")
+            return
+
+        if not self.bluestacks.is_running():
+            self._set_status("⚙️ Запускаем BlueStacks...", "warning")
+            success, _ = self.bluestacks.launch()
+            if not success:
+                self._set_status("❌ Не удалось запустить BlueStacks", "error")
+                return
+            time.sleep(15)
+
+        self._set_status("🔌 Подключаемся к ADB...", "info")
+        success, serial = self.adb.connect_to_bluestacks_with_wait(
+            wait_timeout=15, retry_interval=2
+        )
+        if not success:
+            self._set_status("❌ Не удалось подключиться к ADB", "error")
+            return
+
+        self._set_status("🎮 Запускаем Clash of Clans...", "info")
+        success = self.adb.launch_app("com.supercell.clashofclans", "com.supercell.titan.GameApp")
+
+        if success:
+            self._set_status("✅ Clash of Clans запущен!", "success")
+            self.root.after(0, lambda: self.header_status.config(
+                text="● РАБОТАЕТ", fg=THEME["accent_green"]
+            ))
+        else:
+            self._set_status("❌ Ошибка при запуске игры", "error")
+
+        self.root.after(0, lambda: self.start_btn.config(state=tk.NORMAL))
+
+    # ─────────────────────────────────────────────
+    # ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ
+    # ─────────────────────────────────────────────
+
+    def _log(self, message: str, tag: str = "info"):
+        self.root.after(0, lambda: self._append_log(message, tag))
+
+    def _append_log(self, message: str, tag: str):
         self.log_text.insert(tk.END, message + "\n", tag)
         self.log_text.see(tk.END)
 
-    def update_ui_checking_start(self):
-        """ПРОЦЕСС 12b: Обновление UI при начале проверки (блокировка кнопок, прогресс)"""
-        self.check_btn.config(state=tk.DISABLED)
-        self.install_btn.config(state=tk.DISABLED)
-        self.progress.start()
+    def _set_status(self, text: str, style: str = "normal"):
+        colors = {
+            "success": THEME["accent_green"],
+            "error":   THEME["accent_red"],
+            "warning": THEME["accent_orange"],
+            "info":    THEME["accent_blue"],
+            "normal":  THEME["text_secondary"],
+        }
+        fg = colors.get(style, THEME["text_secondary"])
+        self.root.after(0, lambda: self.statusbar.config(text=text, fg=fg))
 
-    def update_ui_checking_end(self):
-        """ПРОЦЕСС 12c: Обновление UI при завершении проверки (разблокировка кнопок)"""
-        self.check_btn.config(state=tk.NORMAL)
-        self.progress.stop()
+    def _ui_start(self):
+        self.check_btn.config(state=tk.DISABLED, fg=THEME["text_disabled"])
+        self.progress_bar.config(bg=THEME["accent_green"])
 
-    def update_ui_with_results(self):
-        """ПРОЦЕСС 12d: Обновление UI с результатами проверки (статистика пакетов)"""
-        if not self.checker:
-            return
-
-        self.status_required.config(
-            text=str(len(self.checker.required_packages)))
-        self.status_installed.config(
-            text=str(len(self.checker.installed_packages)))
-        self.status_missing.config(
-            text=str(len(self.checker.missing_packages)))
-
-        if self.checker.missing_packages:
-            self.install_btn.config(state=tk.NORMAL)
+    def _ui_end(self):
+        self.check_btn.config(state=tk.NORMAL, fg=THEME["accent_blue"])
+        self.progress_bar.config(bg=THEME["accent_blue"])
 
 
 def main():
-    """Главная функция"""
     root = tk.Tk()
     BotMainWindow(root)
     root.mainloop()
