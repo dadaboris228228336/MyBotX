@@ -1,0 +1,142 @@
+{
+  "application": {
+    "name": "MyBotX",
+    "version": "3.0.0",
+    "description": "Бот для автоматизации Clash of Clans через BlueStacks с GUI управлением",
+    "author": "MyBotX Team",
+    "python_version": "3.10+",
+    "created_date": "2026-01-27",
+    "last_updated": "2026-02-01",
+    "platform": "Windows",
+    "license": "MIT"
+  },
+  "project_structure": {
+    "launcher": {
+      "file": "MyBotX_1.0_launcher.bat",
+      "description": "Главный лаунчер с проверкой зависимостей",
+      "features": [
+        "UTF-8 encoding",
+        "Python check",
+        "tkinter check",
+        "Auto GUI launch"
+      ]
+    },
+    "core_modules": {
+      "main.py": {
+        "class": "BotMainWindow",
+        "purpose": "GUI интерфейс с тремя вкладками",
+        "threading": "daemon threads для фоновых операций"
+      },
+      "dependency_checker.py": {
+        "class": "DependencyChecker",
+        "purpose": "Управление Python пакетами",
+        "features": [
+          "pip list parsing",
+          "auto installation",
+          "detailed logging"
+        ]
+      },
+      "bluestacks_manager.py": {
+        "class": "BlueStacksManager",
+        "purpose": "Управление BlueStacks эмулятором",
+        "features": [
+          "auto detection",
+          "path caching",
+          "process management"
+        ]
+      },
+      "advanced_adb_manager.py": {
+        "class": "AdvancedADBManager",
+        "purpose": "ADB подключение и запуск игр",
+        "optimization": "5 секунд вместо 52 для проверки портов"
+      }
+    }
+  },
+  "features": {
+    "gui_tabs": {
+      "main": "🏠 ОСНОВНОЕ - Кнопка СТАРТ для запуска бота",
+      "check": "✓ ПРОВЕРКА - Управление зависимостями и BlueStacks",
+      "about": "ℹ️ О ПРОГРАММЕ - Информация о версии"
+    },
+    "automation": {
+      "target_game": "Clash of Clans",
+      "emulator": "BlueStacks 4/5",
+      "connection": "ADB через порты 5555-5559"
+    }
+  },
+  "technical_config": {
+    "adb_settings": {
+      "ports": [
+        5555,
+        5556,
+        5557,
+        5558,
+        5559
+      ],
+      "timeout": 1.0,
+      "max_wait": 15
+    },
+    "gui_settings": {
+      "window_size": "900x600",
+      "theme": "clam",
+      "log_colors": {
+        "success": "green",
+        "error": "red",
+        "warning": "orange",
+        "info": "blue"
+      }
+    }
+  },
+  "start_workflow": {
+    "steps": [
+      "Показать информационное окно",
+      "Проверить BlueStacks установку",
+      "Запустить BlueStacks если нужно",
+      "Быстрая проверка запуска",
+      "ADB подключение",
+      "Запуск Clash of Clans",
+      "Показать результат"
+    ],
+    "total_time": "20-30 секунд",
+    "optimizations": [
+      "Быстрая проверка портов",
+      "Умное ожидание",
+      "Сокращенные таймауты"
+    ]
+  },
+  "requirements": {
+    "system": "Windows 10/11",
+    "python": "3.10+",
+    "emulator": "BlueStacks 4 или 5",
+    "packages": [
+      "tkinter",
+      "psutil",
+      "requests",
+      "Pillow",
+      "autopep8"
+    ]
+  },
+  "fixed_issues": {
+    "time_import_error": "Добавлен локальный импорт time",
+    "slow_port_check": "Оптимизировано с 52 до 5 секунд",
+    "pep8_violations": "Исправлены все 82+ нарушения стиля"
+  },
+  "usage": {
+    "quick_start": [
+      "Запустить MyBotX_1.0_launcher.bat",
+      "Вкладка ПРОВЕРКА → Проверить всё",
+      "При необходимости → Установить пакеты",
+      "Вкладка ОСНОВНОЕ → СТАРТ"
+    ]
+  },
+  "metadata": {
+    "config_version": "3.0.0",
+    "last_updated": "2026-02-01",
+    "documentation": "CONFIG/config_comments.md"
+  },
+  "bluestacks": {
+    "path": "C:\\Program Files\\BlueStacks_nxt\\HD-Player.exe",
+    "cached_at": "2026-02-01 17:01:39",
+    "auto_detected": true
+  }
+}

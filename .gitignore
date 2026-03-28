@@ -1,0 +1,37 @@
+# Установщики (слишком большие для GitHub)
+BOT_APPLICATIONS/*.exe
+BOT_APPLICATIONS/wheels/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Логи тестов
+TESTS/logs/
+TESTS/TESTS/
+
+# Временные файлы
+CORE/temp/
+*.log
+*.tmp
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Windows
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Kiro
+.kiro/
