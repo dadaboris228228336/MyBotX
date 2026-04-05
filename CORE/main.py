@@ -37,11 +37,19 @@ class BotMainWindow:
 
     def __init__(self, root):
         self.root = root
-        self.root.title("MyBotX v3.0.0")
+        self.root.title("MyBotX")
         self.root.geometry("960x620")
         self.root.configure(bg=THEME["bg_main"])
         self.root.resizable(True, True)
         self.root.minsize(800, 550)
+
+        # Иконка приложения
+        try:
+            icon_path = Path(__file__).parent / "mybotx.ico"
+            if icon_path.exists():
+                self.root.iconbitmap(str(icon_path))
+        except Exception:
+            pass
 
         self.checker = None
         self.is_checking = False
@@ -93,7 +101,7 @@ class BotMainWindow:
 
         create_label(
             header,
-            text="v3.0.0  |  Clash of Clans Bot",
+            text="v1.0.0  |  Clash of Clans Bot",
             style="dim",
             bg=THEME["bg_panel"]
         ).pack(side=tk.LEFT, pady=10)
@@ -707,22 +715,32 @@ class BotMainWindow:
         threading.Thread(target=_monitor, daemon=True).start()
 
     def _minimize_other_windows(self):
-        """Сворачивает все окна кроме MyBotX."""
+        """Сворачивает все окна кроме MyBotX и BlueStacks."""
         try:
             import win32gui, win32con
+
             our_hwnd = self.root.winfo_id()
+            BS_TITLES = ["bluestacks app player", "bluestacks", "hd-player"]
 
             def cb(hwnd, _):
-                if hwnd == our_hwnd:
-                    return
                 if not win32gui.IsWindowVisible(hwnd):
                     return
-                title = win32gui.GetWindowText(hwnd)
+                title = win32gui.GetWindowText(hwnd).strip()
                 if not title:
                     return
-                # Не трогаем системные окна
-                if title in ("Program Manager", "Windows Input Experience"):
+                # Оставляем наше окно
+                if hwnd == our_hwnd:
                     return
+                # Оставляем BlueStacks
+                if any(bs in title.lower() for bs in BS_TITLES):
+                    # Разворачиваем BlueStacks если свёрнут
+                    win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+                    return
+                # Системные окна не трогаем
+                if title in ("Program Manager", "Windows Input Experience",
+                             "Microsoft Text Input Application"):
+                    return
+                # Всё остальное сворачиваем
                 win32gui.ShowWindow(hwnd, win32con.SW_MINIMIZE)
 
             win32gui.EnumWindows(cb, None)
@@ -1072,7 +1090,7 @@ class BotMainWindow:
         center.place(relx=0.5, rely=0.5, anchor="center")
 
         create_label(center, "⚡ MyBotX", style="title", bg=THEME["bg_main"]).pack(pady=(0, 4))
-        create_label(center, "v3.0.0", style="header", bg=THEME["bg_main"]).pack()
+        create_label(center, "v1.0.0", style="header", bg=THEME["bg_main"]).pack()
 
         create_separator(center).pack(fill=tk.X, pady=16)
 
