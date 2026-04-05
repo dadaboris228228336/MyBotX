@@ -17,7 +17,7 @@ set "PYTHON_INSTALLER=BOT_APPLICATIONS\python-3.10.11-amd64.exe"
 set "BLUESTACKS_INSTALLER=BOT_APPLICATIONS\BlueStacksInstaller_5.22.130.1019_amd64_native.exe"
 set "WHEELS_DIR=BOT_APPLICATIONS\wheels"
 
-echo 🔄 Закрываем предыдущие экземпляры MyBotX (python)...
+echo 🔄 Закрываем предыдущие экземпляры MyBotX...
 taskkill /IM "python.exe" /F >nul 2>&1
 taskkill /IM "pythonw.exe" /F >nul 2>&1
 timeout /t 1 /nobreak >nul
@@ -144,18 +144,6 @@ if not exist "%~dp0CORE\main.py" (
 
 cd /d "%~dp0CORE"
 echo.
-echo Запуск GUI (python main.py). Окно консоли можно свернуть. Закройте GUI — вернётесь сюда.
-echo.
-python main.py
-if errorlevel 1 (
-    echo.
-    echo ❌ Ошибка при запуске main.py — текст выше из Python.
-    pause
-    exit /b 1
-)
-if "%MYBOTX_NO_PAUSE%"=="" (
-    echo.
-    echo Сеанс завершён. Нажмите клавишу, чтобы закрыть окно...
-    pause >nul
-)
-exit /b 0
+echo ✅ Все проверки пройдены. Запускаем MyBotX...
+start "" /min cmd /c "python main.py"
+exit
