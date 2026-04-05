@@ -40,7 +40,8 @@ class BotMainWindow:
         self.root.title("MyBotX v3.0.0")
         self.root.geometry("960x620")
         self.root.configure(bg=THEME["bg_main"])
-        self.root.resizable(False, False)
+        self.root.resizable(True, True)
+        self.root.minsize(800, 550)
 
         self.checker = None
         self.is_checking = False
