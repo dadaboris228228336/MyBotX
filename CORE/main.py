@@ -12,14 +12,7 @@ from pathlib import Path
 from tkinter import scrolledtext
 import tkinter.messagebox
 
-# Инициализируем логгер сессии
-import sys as _sys
 sys.path.insert(0, str(Path(__file__).parent))
-try:
-    import session_logger
-    session_logger.init()
-except Exception:
-    pass
 
 try:
     from dependency_checker import DependencyChecker
@@ -54,9 +47,21 @@ class BotMainWindow:
         self.bluestacks = BlueStacksManager()
         self.adb = AdvancedADBManager()
 
+        # Инициализируем логгер сессии
+        try:
+            import session_logger
+            session_logger.init()
+            self._session_logger = session_logger
+        except Exception:
+            self._session_logger = None
+
         # Удаляем PID файл при закрытии пользователем (без выключения BS)
         self._pid_file = Path(__file__).parent / "temp" / "mybotx.pid"
         self.root.protocol("WM_DELETE_WINDOW", self._on_close_user)
+
+        # Мониторинг BlueStacks — проверяем каждые 10 сек
+        self._bs_monitor_active = False
+        self._start_bs_monitor()
 
         self._build_ui()
 
@@ -376,7 +381,8 @@ class BotMainWindow:
         self.bot_log.insert(tk.END, msg + "\n", tag)
         self.bot_log.see(tk.END)
         try:
-            session_logger.write(msg, tag)
+            if self._session_logger:
+                self._session_logger.write(msg, tag)
         except Exception:
             pass
 
@@ -669,8 +675,39 @@ class BotMainWindow:
     def _bot_save_record(self):
         self._bot_log("ℹ️ Сохранение сценария пока не реализовано.", "warning")
 
+    def _start_bs_monitor(self):
+        """Запускает фоновый мониторинг процесса BlueStacks."""
+        self._bs_monitor_active = True
+        self._bs_was_running = False
+
+        def _monitor():
+            import time
+            while self._bs_monitor_active:
+                try:
+                    is_running = self.bluestacks.is_running()
+
+                    if self._bs_was_running and not is_running:
+                        # BlueStacks только что упал
+                        msg = "⚠ BlueStacks закрылся неожиданно!"
+                        self._log(msg, "error")
+                        self._set_status(msg, "error")
+                        self._set_stat("BlueStacks", "❌ Закрыт", "error")
+                        self._set_stat("ADB", "—", "normal")
+                        self._set_stat("Игра", "—", "normal")
+                        self.root.after(0, lambda: self.header_status.config(
+                            text="● ОСТАНОВЛЕН", fg=THEME["accent_red"]
+                        ))
+
+                    self._bs_was_running = is_running
+                except Exception:
+                    pass
+                time.sleep(10)
+
+        threading.Thread(target=_monitor, daemon=True).start()
+
     def _on_close_user(self):
         """Пользователь закрыл окно — удаляем PID и лог сессии"""
+        self._bs_monitor_active = False
         try:
             if self._pid_file.exists():
                 self._pid_file.unlink()
@@ -1356,7 +1393,8 @@ class BotMainWindow:
         self.log_text.insert(tk.END, message + "\n", tag)
         self.log_text.see(tk.END)
         try:
-            session_logger.write(message, tag)
+            if self._session_logger:
+                self._session_logger.write(message, tag)
         except Exception:
             pass
 
