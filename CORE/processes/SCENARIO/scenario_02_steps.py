@@ -51,6 +51,15 @@ STEP_DEFAULTS = {
 }
 
 
+def _fmt(val) -> str:
+    """Форматирует число без лишних нулей: 5.0 → '5', 3.8 → '3.8'"""
+    try:
+        f = float(val)
+        return str(int(f)) if f == int(f) else str(f)
+    except Exception:
+        return str(val)
+
+
 def step_label(step: dict) -> str:
     """Возвращает читаемое описание шага для отображения в списке."""
     t = step.get("type", "")
@@ -58,18 +67,18 @@ def step_label(step: dict) -> str:
     label = STEP_KEY_LABELS.get(t, t)
 
     if t == "find_and_tap":
-        return f"{label}: {p.get('pattern', '?')} (x{p.get('retries', 1)})"
+        return f"{label}: {p.get('pattern', '?')} (x{_fmt(p.get('retries', 1))})"
     elif t == "tap_coords":
-        return f"{label}: ({p.get('x')}, {p.get('y')})"
+        return f"{label}: ({_fmt(p.get('x'))}, {_fmt(p.get('y'))})"
     elif t == "swipe":
-        return f"{label}: ({p.get('x1')},{p.get('y1')})→({p.get('x2')},{p.get('y2')})"
+        return f"{label}: ({_fmt(p.get('x1'))},{_fmt(p.get('y1'))})→({_fmt(p.get('x2'))},{_fmt(p.get('y2'))})"
     elif t in ("pinch_out", "pinch_in"):
-        return f"{label} {p.get('seconds', 2.0)}с"
+        return f"{label} {_fmt(p.get('seconds', 2.0))}с"
     elif t in ("launch_app", "stop_app"):
         pkg = p.get("package", "")
         return f"{label}: {pkg.split('.')[-1]}"
     elif t == "input_text":
         return f"{label}: {str(p.get('text', ''))[:20]}"
     elif t == "wait":
-        return f"{label}: {p.get('seconds')}с"
+        return f"{label}: {_fmt(p.get('seconds'))}с"
     return label

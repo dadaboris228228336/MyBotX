@@ -704,8 +704,16 @@ class BotMainWindow:
         threading.Thread(target=_monitor, daemon=True).start()
 
     def _on_close_user(self):
-        """Пользователь закрыл окно — удаляем PID и лог сессии"""
+        """Пользователь закрыл окно — автосохранение сценария, удаляем PID и лог"""
         self._bs_monitor_active = False
+
+        # Автосохранение текущего сценария
+        try:
+            if hasattr(self, "_scenario_editor"):
+                self._scenario_editor._save()
+        except Exception:
+            pass
+
         try:
             if self._pid_file.exists():
                 self._pid_file.unlink()

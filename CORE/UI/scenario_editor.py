@@ -100,7 +100,14 @@ class StepDialog(tk.Toplevel):
             row.pack(fill=tk.X, pady=2)
             create_label(row, label, style="dim",
                          bg=THEME["bg_panel"]).pack(anchor="w")
-            var = tk.StringVar(value=str(p.get(key, default)))
+            # Форматируем значение без лишних нулей: 2.0 → "2", 3.8 → "3.8"
+            raw = p.get(key, default)
+            try:
+                fval = float(raw)
+                display = str(int(fval)) if fval == int(fval) else str(fval)
+            except Exception:
+                display = str(raw)
+            var = tk.StringVar(value=display)
             tk.Entry(row, textvariable=var, width=32,
                      bg=THEME["bg_input"], fg=THEME["accent_blue"],
                      font=THEME["font_normal"], relief=tk.FLAT,
@@ -274,6 +281,8 @@ class ScenarioEditor(tk.Frame):
         # Загружаем список сценариев
         self._refresh_scenario_list()
         self._scenario_var.trace_add("write", lambda *_: self._on_scenario_change())
+        # Явно загружаем шаги первого сценария
+        self._on_scenario_change()
 
     # ── Управление шагами ────────────────────────────────────────────────────
 
