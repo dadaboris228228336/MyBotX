@@ -80,7 +80,9 @@ def do_pinch(device: str, zoom_in: bool, seconds: float = 2.0, log=None):
 
         # Перемещаем курсор в центр окна BlueStacks и крутим колёсико
         pyautogui.moveTo(cx, cy, duration=0.1)
-        scroll_dir = 3 if zoom_in else -3
+        # scroll(-3) = вниз = zoom OUT (отдалить), scroll(3) = вверх = zoom IN (приблизить)
+        # В BlueStacks с Ctrl: вниз = отдалить, вверх = приблизить
+        scroll_dir = -3 if zoom_in else 3
         interval   = 0.05
         ticks      = int(seconds / interval)
 

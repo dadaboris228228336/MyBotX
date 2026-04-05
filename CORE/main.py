@@ -66,6 +66,9 @@ class BotMainWindow:
 
         self._build_ui()
 
+        # Сворачиваем все окна кроме нашего через 1 секунду после запуска
+        self.root.after(1000, self._minimize_other_windows)
+
     # ─────────────────────────────────────────────
     # ПОСТРОЕНИЕ UI
     # ─────────────────────────────────────────────
@@ -702,6 +705,29 @@ class BotMainWindow:
                 time.sleep(10)
 
         threading.Thread(target=_monitor, daemon=True).start()
+
+    def _minimize_other_windows(self):
+        """Сворачивает все окна кроме MyBotX."""
+        try:
+            import win32gui, win32con
+            our_hwnd = self.root.winfo_id()
+
+            def cb(hwnd, _):
+                if hwnd == our_hwnd:
+                    return
+                if not win32gui.IsWindowVisible(hwnd):
+                    return
+                title = win32gui.GetWindowText(hwnd)
+                if not title:
+                    return
+                # Не трогаем системные окна
+                if title in ("Program Manager", "Windows Input Experience"):
+                    return
+                win32gui.ShowWindow(hwnd, win32con.SW_MINIMIZE)
+
+            win32gui.EnumWindows(cb, None)
+        except Exception:
+            pass
 
     def _on_close_user(self):
         """Пользователь закрыл окно — автосохранение сценария, удаляем PID и лог"""
