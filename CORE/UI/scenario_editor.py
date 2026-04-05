@@ -176,12 +176,15 @@ class StepDialog(tk.Toplevel):
 class ScenarioEditor(tk.Frame):
     """Редактор сценариев v3.0 — без правой панели."""
 
-    def __init__(self, parent, adb, log_callback):
+    def __init__(self, parent, adb, log_callback,
+                 start_callback=None, is_connected=None):
         super().__init__(parent, bg=THEME["bg_main"])
-        self.adb      = adb
-        self.log      = log_callback
-        self._steps   = []
-        self._running = False
+        self.adb            = adb
+        self.log            = log_callback
+        self._start_cb      = start_callback   # fn() — запускает СТАРТ
+        self._is_connected  = is_connected or (lambda: bool(adb.connected_device))
+        self._steps         = []
+        self._running       = False
         ScenarioStorage.ensure_dir()
         self._build()
 
@@ -396,13 +399,37 @@ class ScenarioEditor(tk.Frame):
     def _run_scenario(self):
         if self._running:
             return
-        if not self.adb.connected_device:
-            self.log("❌ Устройство не подключено. Нажмите СТАРТ сначала.", "error")
-            return
         if not self._steps:
             self.log("⚠ Сценарий пуст", "warning")
             return
 
+        # Если устройство не подключено — сначала запускаем СТАРТ
+        if not self._is_connected():
+            self.log("🔌 Устройство не подключено — запускаем СТАРТ...", "info")
+            if self._start_cb:
+                self._start_cb()
+            # Ждём подключения (макс 30 сек)
+            self._run_btn.config(text="⏳ Подключение...",
+                                 state=tk.DISABLED, fg=THEME["text_disabled"])
+            self.after(1000, self._wait_for_connection)
+            return
+
+        self._start_running()
+
+    def _wait_for_connection(self, attempts: int = 0):
+        """Ждёт подключения ADB после запуска СТАРТ (макс 30 попыток по 1 сек)."""
+        if self._is_connected():
+            self.log("✅ Устройство подключено — запускаем сценарий", "success")
+            self._start_running()
+            return
+        if attempts >= 30:
+            self.log("❌ Не удалось подключиться за 30 секунд", "error")
+            self._on_run_done()
+            return
+        self.after(1000, lambda: self._wait_for_connection(attempts + 1))
+
+    def _start_running(self):
+        """Запускает выполнение шагов сценария."""
         self._running = True
         self._run_btn.config(text="⏳ Выполняется...",
                              state=tk.DISABLED, fg=THEME["text_disabled"])

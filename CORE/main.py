@@ -360,7 +360,9 @@ class BotMainWindow:
         self.bot_log.tag_config("dim",     foreground=THEME["text_secondary"])
 
         # Редактор сценариев (внизу)
-        self._scenario_editor = ScenarioEditor(frame, self.adb, self._bot_log)
+        self._scenario_editor = ScenarioEditor(frame, self.adb, self._bot_log,
+                                               start_callback=self.on_start_bot,
+                                               is_connected=lambda: bool(self.adb.connected_device))
         self._scenario_editor.pack(fill=tk.BOTH, expand=True)
 
     def _refresh_patterns_list(self, parent):
