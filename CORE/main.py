@@ -17,6 +17,7 @@ try:
     from advanced_adb_manager import AdvancedADBManager
     from UI.theme import THEME
     from UI.widgets import create_button, create_label, create_frame, create_separator
+    from UI.pattern_editor import PatternEditor
 except ImportError:
     sys.path.insert(0, str(Path(__file__).parent))
     from dependency_checker import DependencyChecker
@@ -24,6 +25,7 @@ except ImportError:
     from advanced_adb_manager import AdvancedADBManager
     from UI.theme import THEME
     from UI.widgets import create_button, create_label, create_frame, create_separator
+    from UI.pattern_editor import PatternEditor
 
 
 class BotMainWindow:
@@ -231,6 +233,11 @@ class BotMainWindow:
             command=self.on_clear_logs, width=18
         ).pack(side=tk.LEFT)
 
+        create_button(
+            btn_row, "📸  Скриншот",
+            command=self.on_screenshot, width=14
+        ).pack(side=tk.RIGHT, padx=(8, 0))
+
         # Статус-карточки
         cards = tk.Frame(frame, bg=THEME["bg_main"])
         cards.pack(fill=tk.X, pady=(0, 8))
@@ -297,10 +304,18 @@ class BotMainWindow:
             ("✂️ Вырезать паттерн",  self._bot_crop_pattern),
             ("💰 Собрать ресурсы",   self._bot_collect),
             ("⚔️ Начать атаку",      self._bot_attack),
-            ("❌ Закрыть окно",      self._bot_close_popup),
         ]
         for label, cmd in actions:
             create_button(left, label, cmd, width=24).pack(pady=4, padx=10)
+
+        create_separator(left).pack(fill=tk.X, padx=10, pady=8)
+
+        # Запись действий
+        create_label(left, "🔴 Запись действий", style="dim", bg=THEME["bg_panel"]).pack(padx=10, anchor="w", pady=(0,4))
+        self.record_btn = create_button(left, "🔴  Начать запись", self._bot_start_record, width=24)
+        self.record_btn.pack(pady=2, padx=10)
+        create_button(left, "▶️  Воспроизвести", self._bot_play_record, width=24).pack(pady=2, padx=10)
+        create_button(left, "💾  Сохранить сценарий", self._bot_save_record, width=24).pack(pady=2, padx=10)
 
         create_separator(left).pack(fill=tk.X, padx=10, pady=8)
 
@@ -524,6 +539,15 @@ class BotMainWindow:
         except Exception as e:
             self._bot_log(f"❌ Ошибка: {e}", "error")
 
+    def _bot_start_record(self):
+        self._bot_log("ℹ️ Запись сценария пока не реализована.", "warning")
+
+    def _bot_play_record(self):
+        self._bot_log("ℹ️ Воспроизведение сценария пока не реализовано.", "warning")
+
+    def _bot_save_record(self):
+        self._bot_log("ℹ️ Сохранение сценария пока не реализовано.", "warning")
+
     def _on_close_user(self):
         """Пользователь закрыл окно — удаляем PID, BlueStacks НЕ трогаем"""
         try:
@@ -693,16 +717,64 @@ class BotMainWindow:
             self._log("🔍 ПРОВЕРКА PYTHON ПАКЕТОВ", "info")
             self._log("=" * 50, "dim")
 
-            self.checker = DependencyChecker("requirements.txt")
-            self.checker.check_dependencies()
+            # Читаем requirements.txt с версиями
+            import subprocess, sys
+            req_path = Path(__file__).parent / "requirements.txt"
+            required = {}  # {name: version}
+            if req_path.exists():
+                for line in req_path.read_text().splitlines():
+                    line = line.strip()
+                    if line and not line.startswith("#"):
+                        if "==" in line:
+                            name, ver = line.split("==", 1)
+                            required[name.strip().lower()] = ver.strip()
+                        else:
+                            required[line.lower()] = None
 
-            installed = len(self.checker.installed_packages)
-            missing = len(self.checker.missing_packages)
+            # Получаем установленные пакеты с версиями
+            import json
+            result = subprocess.run(
+                [sys.executable, "-m", "pip", "list", "--format=json"],
+                capture_output=True, text=True, timeout=30
+            )
+            installed_map = {}  # {name: version}
+            if result.returncode == 0:
+                for pkg in json.loads(result.stdout):
+                    installed_map[pkg["name"].lower()] = pkg["version"]
+
+            # Проверяем каждый пакет из requirements.txt
+            missing = []
+            for pkg_name, req_ver in required.items():
+                if pkg_name in installed_map:
+                    inst_ver = installed_map[pkg_name]
+                    if req_ver and inst_ver != req_ver:
+                        self._log(f"  ⚠️ {pkg_name} — установлен {inst_ver}, нужен {req_ver}", "warning")
+                        missing.append(pkg_name)
+                    else:
+                        self._log(f"  ✅ {pkg_name}=={inst_ver}", "success")
+                else:
+                    self._log(f"  ❌ {pkg_name} — не установлен", "error")
+                    missing.append(pkg_name)
+
+            self._log("", "dim")
+            if missing:
+                self._log(f"❌ Не установлено: {len(missing)} пакетов", "error")
+            else:
+                self._log("✅ Все пакеты установлены!", "success")
+
+            # Сохраняем для кнопки установки
+            self.checker = type("Checker", (), {
+                "missing_packages": missing,
+                "installed_packages": [p for p in required if p not in missing],
+                "required_packages": list(required.keys()),
+            })()
+
+            inst_count = len(required) - len(missing)
             self.root.after(0, lambda: self.status_labels["packages"].config(
-                text=f"✅ {installed} уст. / ❌ {missing} нет",
-                fg=THEME["accent_green"] if missing == 0 else THEME["accent_red"]
+                text=f"✅ {inst_count}/{len(required)} установлено",
+                fg=THEME["accent_green"] if not missing else THEME["accent_red"]
             ))
-            if missing > 0:
+            if missing:
                 self.root.after(0, lambda: self.install_btn.config(
                     state=tk.NORMAL, fg=THEME["accent_blue"]
                 ))
@@ -752,9 +824,29 @@ class BotMainWindow:
         self.is_checking = True
         self.root.after(0, self._ui_start)
         try:
-            self._log("🗑 Удаление пакетов...", "warning")
+            # Читаем только НАШИ пакеты из requirements.txt
+            from pathlib import Path
             import subprocess
-            packages = ["psutil"]
+            req_file = Path(__file__).parent / "requirements.txt"
+            if not req_file.exists():
+                self._log("❌ requirements.txt не найден", "error")
+                return
+
+            packages = []
+            for line in req_file.read_text().splitlines():
+                line = line.strip()
+                if line and not line.startswith("#"):
+                    # Убираем версию: psutil==5.9.6 → psutil
+                    pkg = line.split("==")[0].split(">=")[0].split("<=")[0].strip()
+                    if pkg:
+                        packages.append(pkg)
+
+            if not packages:
+                self._log("⚠️ Нет пакетов для удаления", "warning")
+                return
+
+            self._log(f"🗑 Удаляем {len(packages)} пакетов: {', '.join(packages)}", "warning")
+
             for pkg in packages:
                 result = subprocess.run(
                     ["pip", "uninstall", pkg, "-y"],
@@ -763,8 +855,11 @@ class BotMainWindow:
                 if result.returncode == 0:
                     self._log(f"✅ {pkg} удалён", "success")
                 else:
-                    self._log(f"⚠️ {pkg}: {result.stderr.strip()}", "warning")
-            self._log("✅ Готово", "success")
+                    self._log(f"⚠️ {pkg}: не установлен или ошибка", "warning")
+
+            self._log(f"✅ Готово. Удалено: {len(packages)} пакетов", "success")
+        except Exception as e:
+            self._log(f"❌ Ошибка: {e}", "error")
         finally:
             self.is_checking = False
             self.root.after(0, self._ui_end)
@@ -792,6 +887,28 @@ class BotMainWindow:
         self.log_text.delete(1.0, tk.END)
         for lbl in self.status_labels.values():
             lbl.config(text="—", fg=THEME["text_primary"])
+
+    def on_screenshot(self):
+        """Сделать скриншот и сохранить для отладки"""
+        if not self.adb.connected_device:
+            self._log("❌ Устройство не подключено", "error")
+            return
+        thread = threading.Thread(target=self._screenshot_thread, daemon=True)
+        thread.start()
+
+    def _screenshot_thread(self):
+        try:
+            from processes.BOT.bot_01_screenshot import BotScreenshot
+            from pathlib import Path
+            import time
+            sc = BotScreenshot(self.adb.connected_device, self._log_direct)
+            path = str(Path(__file__).parent / "processes" / "BOT" / "patterns" / f"screenshot_{int(time.time())}.png")
+            if sc.capture_and_save(path):
+                self._log(f"✅ Скриншот сохранён в patterns/", "success")
+            else:
+                self._log("❌ Не удалось сделать скриншот", "error")
+        except Exception as e:
+            self._log(f"❌ Ошибка: {e}", "error")
 
     def on_start_bot(self):
         thread = threading.Thread(target=self._start_thread, daemon=True)
@@ -852,6 +969,10 @@ class BotMainWindow:
 
     def _log(self, message: str, tag: str = "info"):
         self.root.after(0, lambda: self._append_log(message, tag))
+
+    def _log_direct(self, message: str):
+        """Для передачи как callback в BOT модули"""
+        self._log(message, "info")
 
     def _append_log(self, message: str, tag: str):
         self.log_text.insert(tk.END, message + "\n", tag)

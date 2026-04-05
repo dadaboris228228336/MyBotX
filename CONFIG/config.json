@@ -12,7 +12,7 @@
   },
   "project_structure": {
     "launcher": {
-      "file": "MyBotX_1.0_launcher.bat",
+      "file": "MyBotX_1.0.bat",
       "description": "Главный лаунчер с проверкой зависимостей",
       "features": [
         "UTF-8 encoding",
@@ -123,7 +123,7 @@
   },
   "usage": {
     "quick_start": [
-      "Запустить MyBotX_1.0_launcher.bat",
+      "Запустить MyBotX_1.0.bat",
       "Вкладка ПРОВЕРКА → Проверить всё",
       "При необходимости → Установить пакеты",
       "Вкладка ОСНОВНОЕ → СТАРТ"

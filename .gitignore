@@ -35,3 +35,7 @@ $RECYCLE.BIN/
 
 # Kiro
 .kiro/
+
+# Тесты / кэш
+.pytest_cache/
+.hypothesis/

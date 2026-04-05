@@ -1,10 +1,10 @@
 # 🤖 MyBotX
 
-Автоматизация Clash of Clans через BlueStacks 5 с GUI управлением на Python.
+Автоматизация Clash of Clans через BlueStacks 5 с GUI управлением на Python (Windows).
 
 ## ⚡ Быстрый старт
 
-1. Запустите `MyBotX_1.0_launcher.bat`
+1. Запустите `MyBotX_1.0.bat` (старый ярлык `MyBotX_1.0_launcher.bat` тоже работает)
 2. Вкладка **ПРОВЕРКА** → Проверить всё
 3. Вкладка **ОСНОВНОЕ** → СТАРТ
 
@@ -15,24 +15,18 @@
 - BlueStacks 5
 - psutil
 
-## 🏗️ Структура проекта
+## 🏗️ Актуальная структура проекта
 
 ```
 MyBotX/
-├── MyBotX_1.0_launcher.bat       # Главный лаунчер (автоустановка всего)
+├── MyBotX_1.0.bat                # Главный запуск (проверки + python main.py)
+├── MyBotX_1.0_launcher.bat       # Совместимость: вызывает MyBotX_1.0.bat
 ├── GIT_COMMANDS.md               # Шпаргалка по Git
 ├── README.md                     # Описание проекта
-│
-├── BOT_APPLICATIONS/             # Установщики и зависимости
-│   ├── python-3.10.11-amd64.exe  # Установщик Python
-│   ├── BlueStacksInstaller.exe   # Установщик BlueStacks 5
-│   ├── platform-tools/           # ADB инструменты (adb.exe и др.)
-│   └── wheels/                   # Python пакеты для оффлайн установки
-│
 ├── CONFIG/
-│   └── config.json               # Конфигурация проекта
-│
-├── CORE/                         # Весь исходный код
+│   ├── config.json               # Конфигурация проекта
+│   └── config_comments.md        # Комментарии по настройкам
+├── CORE/                         # Исходный код
 │   ├── main.py                   # GUI интерфейс (tkinter, 3 вкладки)
 │   ├── advanced_adb_manager.py   # Менеджер ADB подключений
 │   ├── bluestacks_manager.py     # Менеджер BlueStacks
@@ -64,6 +58,7 @@ MyBotX/
 │           ├── dep_03_check.py       # Проверка пакетов через pip
 │           └── dep_04_install.py     # Установка пакетов
 │
+├── BOT_APPLICATIONS/             # Platform-tools и внешние артефакты
 └── TESTS/                        # Тесты всех модулей
     ├── run_all_tests.bat         # Запуск всех тестов с логами
     ├── clear_test_logs.bat       # Очистка логов
@@ -78,11 +73,13 @@ MyBotX/
 
 - Clash of Clans
 
-## 🔧 Установка зависимостей
+## 🔧 Зависимости
 
-```bash
-pip install psutil
-```
+Используются пакеты из `CORE/requirements.txt`:
+- `psutil==5.9.6`
+- `Pillow==10.1.0`
+- `opencv-python==4.8.1.78`
+- `numpy==1.26.4`
 
 ## 📄 Лицензия
 

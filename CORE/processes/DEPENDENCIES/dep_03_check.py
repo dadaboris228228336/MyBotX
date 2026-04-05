@@ -26,7 +26,7 @@ class DepProcess03Check:
         """
         try:
             if log_callback:
-                log_callback("🔍 Получение списка установленных пакетов...")
+                log_callback("🔍 Проверка наших пакетов...")
 
             result = subprocess.run(
                 [sys.executable, "-m", "pip", "list", "--format=json"],
@@ -37,10 +37,11 @@ class DepProcess03Check:
             )
 
             packages_info = json.loads(result.stdout)
+            # Возвращаем только имена — проверка идёт по required_packages
             installed = [pkg['name'].lower() for pkg in packages_info]
 
             if log_callback:
-                log_callback(f"📦 Установлено {len(installed)} пакетов")
+                log_callback(f"📦 pip list получен ({len(installed)} пакетов в системе)")
             return installed
 
         except subprocess.TimeoutExpired:
@@ -114,17 +115,15 @@ class DepProcess03Check:
                 log_callback("⚠️ Нет пакетов для проверки")
             return {'results': {}, 'missing_packages': []}
 
-        # Проверяем каждый пакет
         results = {}
         missing_packages = []
 
         if log_callback:
-            log_callback("📋 Проверка каждого пакета:")
+            log_callback(f"📋 Проверяем {len(required_packages)} пакетов из requirements.txt:")
 
         for package in required_packages:
             is_installed = DepProcess03Check.check_package_installed(package, installed_packages)
             results[package] = is_installed
-
             if is_installed:
                 if log_callback:
                     log_callback(f"  ✅ {package}")
@@ -133,24 +132,10 @@ class DepProcess03Check:
                     log_callback(f"  ❌ {package}")
                 missing_packages.append(package)
 
-        # Итоговая статистика
-        total = len(required_packages)
         installed_count = len(required_packages) - len(missing_packages)
-
         if log_callback:
-            log_callback("\n📊 Результат проверки:")
-            log_callback(f"  • Всего пакетов: {total}")
-            log_callback(f"  • Установлено: {installed_count}")
-            log_callback(f"  • Недостаёт: {len(missing_packages)}")
+            log_callback(f"\n📊 Наших пакетов: {len(required_packages)} | Установлено: {installed_count} | Нет: {len(missing_packages)}")
+            if not missing_packages:
+                log_callback("🎉 Все пакеты установлены!")
 
-            if missing_packages:
-                log_callback("\n❌ Недостающие пакеты:")
-                for pkg in missing_packages:
-                    log_callback(f"  • {pkg}")
-            else:
-                log_callback("\n🎉 Все пакеты установлены!")
-
-        return {
-            'results': results,
-            'missing_packages': missing_packages
-        }
+        return {'results': results, 'missing_packages': missing_packages}

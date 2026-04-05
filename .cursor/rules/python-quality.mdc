@@ -1,0 +1,13 @@
+---
+description: Python conventions for CORE and TESTS
+globs: "{CORE,TESTS}/**/*.py"
+alwaysApply: false
+---
+
+# Python Quality Rules
+
+- Keep imports stable for both direct run and package-style run (support fallback imports when needed).
+- Use explicit, user-facing error messages for ADB/BlueStacks failures.
+- Avoid hardcoded magic values when they should come from `CONFIG/config.json`.
+- For threaded GUI actions, keep UI updates on the Tk main thread (`root.after` pattern).
+- Add or update tests when changing launcher contracts, file paths, or config behavior.
