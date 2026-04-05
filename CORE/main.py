@@ -715,49 +715,50 @@ class BotMainWindow:
         threading.Thread(target=_monitor, daemon=True).start()
 
     def _minimize_other_windows(self):
-        """Сворачивает все окна кроме MyBotX. BlueStacks разворачивает только если запущен."""
+        """При старте: сворачивает всё, показывает MyBotX + BlueStacks если запущен."""
         try:
-            import win32gui, win32con
+            import win32gui, win32con, psutil
 
-            BS_TITLES   = ["bluestacks app player", "bluestacks", "hd-player"]
-            OUR_TITLE   = "mybotx"
-            our_hwnd    = None
-            bs_hwnd     = None
+            BS_TITLES = ["bluestacks app player", "bluestacks", "hd-player"]
+            OUR_TITLE = "mybotx"
+            our_hwnd  = None
+            bs_hwnd   = None
+
+            # Проверяем запущен ли BlueStacks через процессы
+            bs_running = any(
+                p.name().lower() in ("hd-player.exe", "bluestacks.exe")
+                for p in psutil.process_iter(['name'])
+            )
 
             def cb(hwnd, _):
                 nonlocal our_hwnd, bs_hwnd
-                if not win32gui.IsWindowVisible(hwnd):
-                    return
                 title = win32gui.GetWindowText(hwnd).strip()
                 if not title:
                     return
                 title_lower = title.lower()
 
-                # Наше окно
                 if OUR_TITLE in title_lower:
                     our_hwnd = hwnd
                     return
 
-                # BlueStacks — запоминаем, не трогаем пока
-                if any(bs in title_lower for bs in BS_TITLES):
+                if bs_running and any(bs in title_lower for bs in BS_TITLES):
                     bs_hwnd = hwnd
                     return
 
-                # Системные окна не трогаем
                 if title in ("Program Manager", "Windows Input Experience",
                              "Microsoft Text Input Application"):
                     return
 
-                # Всё остальное сворачиваем
-                win32gui.ShowWindow(hwnd, win32con.SW_MINIMIZE)
+                if win32gui.IsWindowVisible(hwnd):
+                    win32gui.ShowWindow(hwnd, win32con.SW_MINIMIZE)
 
             win32gui.EnumWindows(cb, None)
 
-            # BlueStacks — разворачиваем только если он запущен
+            # Показываем BlueStacks если запущен
             if bs_hwnd:
                 win32gui.ShowWindow(bs_hwnd, win32con.SW_RESTORE)
 
-            # Наше окно поднимаем на передний план
+            # Поднимаем MyBotX
             if our_hwnd:
                 win32gui.ShowWindow(our_hwnd, win32con.SW_RESTORE)
                 win32gui.SetForegroundWindow(our_hwnd)
