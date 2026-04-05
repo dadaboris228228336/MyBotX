@@ -22,6 +22,10 @@ CORE/temp/
 *.log
 *.tmp
 
+# Build output (но не сами скрипты сборки)
+BUILDER/dist/
+BUILDER/work/
+
 # IDE
 .vscode/
 .idea/
