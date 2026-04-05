@@ -78,9 +78,10 @@ def do_pinch(device: str, zoom_in: bool, seconds: float = 2.0, log=None):
         cx = (rect[0] + rect[2]) // 2
         cy = (rect[1] + rect[3]) // 2
 
-        # Зажимаем Ctrl и крутим колёсико нужное количество секунд
+        # Перемещаем курсор в центр окна BlueStacks и крутим колёсико
+        pyautogui.moveTo(cx, cy, duration=0.1)
         scroll_dir = 3 if zoom_in else -3
-        interval   = 0.05  # каждые 50мс один тик
+        interval   = 0.05
         ticks      = int(seconds / interval)
 
         pyautogui.keyDown("ctrl")

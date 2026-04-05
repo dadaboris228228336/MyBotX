@@ -128,16 +128,11 @@ if not exist "%~dp0CORE\main.py" (
 cd /d "%~dp0CORE"
 echo.
 echo  Запускаем MyBotX...
-REM Сворачиваем окно проверок
-powershell -command "(New-Object -ComObject Shell.Application).MinimizeAll()" >nul 2>&1
-python main.py
-if errorlevel 1 (
-    echo.
-    echo [!] Ошибка запуска — смотри текст выше.
-    pause
-    exit /b 1
-)
-exit /b 0
+REM Запускаем MyBotX в отдельном процессе
+start "" python main.py
+REM Ждём секунду и закрываем это окно консоли
+timeout /t 1 /nobreak >nul
+exit
 )
 
 cd /d "%~dp0CORE"
