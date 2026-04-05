@@ -50,15 +50,57 @@ def do_stop(device: str, package: str):
 
 def do_pinch(device: str, zoom_in: bool, times: int, log=None):
     """
-    Zoom in/out через keyevent KEYCODE_ZOOM_OUT/IN.
+    Zoom in/out в BlueStacks через Ctrl + колёсико мыши.
+    Ctrl+ScrollUp = zoom in, Ctrl+ScrollDown = zoom out.
+    Работает на уровне Windows (не ADB).
     """
-    keycode = 169 if zoom_in else 168
-    for _ in range(times):
-        _run(device, ["shell", "input", "keyevent", str(keycode)])
-        time.sleep(0.3)
-    if log:
-        direction = "🔍 zoom_in" if zoom_in else "🔭 zoom_out"
-        log(f"  {direction} x{times} (keyevent {keycode})", "dim")
+    try:
+        import pyautogui
+        import win32con
+        import win32api
+        import win32gui
+
+        # Находим окно BlueStacks
+        BS_TITLES = ["BlueStacks App Player", "BlueStacks", "HD-Player"]
+        hwnd = None
+        def cb(h, _):
+            nonlocal hwnd
+            t = win32gui.GetWindowText(h)
+            if any(s.lower() in t.lower() for s in BS_TITLES) and win32gui.IsWindowVisible(h):
+                hwnd = h
+        win32gui.EnumWindows(cb, None)
+
+        if not hwnd:
+            if log:
+                log("  ⚠ Окно BlueStacks не найдено для zoom", "warning")
+            return
+
+        # Получаем центр окна
+        rect = win32gui.GetWindowRect(hwnd)
+        cx = (rect[0] + rect[2]) // 2
+        cy = (rect[1] + rect[3]) // 2
+
+        # Зажимаем Ctrl и крутим колёсико
+        pyautogui.keyDown("ctrl")
+        for _ in range(times):
+            if zoom_in:
+                pyautogui.scroll(3, x=cx, y=cy)   # вперёд = zoom in
+            else:
+                pyautogui.scroll(-3, x=cx, y=cy)  # назад = zoom out
+            import time
+            time.sleep(0.3)
+        pyautogui.keyUp("ctrl")
+
+        if log:
+            d = "🔍 zoom_in" if zoom_in else "🔭 zoom_out"
+            log(f"  {d} x{times} (Ctrl+scroll)", "dim")
+
+    except ImportError as e:
+        if log:
+            log(f"  ❌ Нужен pyautogui/pywin32: {e}", "error")
+    except Exception as e:
+        if log:
+            log(f"  ❌ Ошибка zoom: {e}", "error")
 
 
 def do_pinch_swipe(device: str, zoom_in: bool, times: int, log=None):
