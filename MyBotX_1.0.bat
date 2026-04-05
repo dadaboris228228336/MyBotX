@@ -20,16 +20,16 @@ taskkill /IM "python.exe" /F >nul 2>&1
 taskkill /IM "pythonw.exe" /F >nul 2>&1
 timeout /t 1 /nobreak >nul
 
+REM ── Python ──────────────────────────────────────────────
 echo 🐍 Проверка Python...
 python --version >nul 2>&1
 if errorlevel 1 goto install_python
-echo ✅ Python найден
+for /f "tokens=*" %%v in ('python --version 2^>^&1') do echo ✅ %%v найден
 goto python_ok
 
 :install_python
 if not exist "%PYTHON_INSTALLER%" (
     echo ❌ Python не найден и установщик отсутствует!
-    echo 💡 Поместите python-3.10.11-amd64.exe в BOT_APPLICATIONS\
     pause
     exit /b 1
 )
@@ -48,6 +48,7 @@ if errorlevel 1 (
 )
 echo ✅ tkinter доступен
 
+REM ── ADB ─────────────────────────────────────────────────
 echo.
 echo 🔧 Проверка ADB...
 if exist "BOT_APPLICATIONS\platform-tools\adb.exe" (
@@ -64,20 +65,19 @@ echo ⚠️ Используем системный ADB
 
 :adb_ok
 
+REM ── BlueStacks ───────────────────────────────────────────
 echo.
 echo 📱 Проверка BlueStacks...
 if exist "C:\Program Files\BlueStacks_nxt\HD-Player.exe" goto bluestacks_ok
 if exist "C:\Program Files (x86)\BlueStacks_nxt\HD-Player.exe" goto bluestacks_ok
 if exist "C:\Program Files\BlueStacks\HD-Player.exe" goto bluestacks_ok
 if exist "C:\Program Files (x86)\BlueStacks\HD-Player.exe" goto bluestacks_ok
-
 for /f "tokens=2*" %%a in ('reg query "HKLM\SOFTWARE\BlueStacks_nxt" /v "InstallDir" 2^>nul') do (
     if exist "%%b\HD-Player.exe" goto bluestacks_ok
 )
 for /f "tokens=2*" %%a in ('reg query "HKLM\SOFTWARE\WOW6432Node\BlueStacks_nxt" /v "InstallDir" 2^>nul') do (
     if exist "%%b\HD-Player.exe" goto bluestacks_ok
 )
-
 echo ❌ BlueStacks не найден
 if not exist "%BLUESTACKS_INSTALLER%" (
     echo 💡 Поместите установщик BlueStacks в BOT_APPLICATIONS\
@@ -91,20 +91,43 @@ echo ✅ BlueStacks установлен!
 :bluestacks_ok
 echo ✅ BlueStacks найден
 
+REM ── Python пакеты ────────────────────────────────────────
 echo.
-echo 📦 Установка зависимостей из requirements.txt...
+echo 📦 Проверка Python пакетов (requirements.txt)...
 echo ────────────────────────────────────────
-python -m pip install -r "%~dp0CORE\requirements.txt"
-if errorlevel 1 (
-    echo ❌ Ошибка установки зависимостей!
-    pause
-    exit /b 1
-)
-echo ────────────────────────────────────────
-echo ✅ Все зависимости установлены
 
+python -c ^
+"import subprocess, sys; ^
+from pathlib import Path; ^
+req = Path(sys.argv[1]); ^
+lines = [l.strip() for l in req.read_text('utf-8').splitlines() if l.strip() and not l.startswith('#')]; ^
+missing = []; ^
+[missing.append(l.split('==')[0].split('>=')[0].strip()) or print('   ❌ ' + l.split('==')[0].strip() + ' — не установлен') if subprocess.run([sys.executable,'-m','pip','show',l.split('==')[0].split('>=')[0].strip()],capture_output=True).returncode != 0 else print('   ✅ ' + l.split('==')[0].strip()) for l in lines]; ^
+sys.exit(1 if missing else 0)" "%~dp0CORE\requirements.txt"
+
+if errorlevel 1 (
+    echo.
+    echo 📦 Устанавливаем недостающие пакеты...
+    python -m pip install -r "%~dp0CORE\requirements.txt"
+    if errorlevel 1 (
+        echo ❌ Ошибка установки!
+        pause
+        exit /b 1
+    )
+    REM Post-install для pywin32
+    python -c "import win32gui" >nul 2>&1
+    if errorlevel 1 (
+        echo 🔧 Настройка pywin32...
+        python -m pywin32_postinstall -install >nul 2>&1
+    )
+)
+
+echo ────────────────────────────────────────
+echo ✅ Все пакеты готовы
+
+REM ── Запуск ───────────────────────────────────────────────
 if not exist "%~dp0CORE\main.py" (
-    echo ❌ Нет CORE\main.py — запускайте из корня проекта MyBotX.
+    echo ❌ Нет CORE\main.py
     pause
     exit /b 1
 )
