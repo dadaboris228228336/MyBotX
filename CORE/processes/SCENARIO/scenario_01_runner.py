@@ -16,13 +16,17 @@ from .scenario_04_adb_actions import (
 class ScenarioRunner:
 
     def __init__(self, steps: list[dict], device: str, log=None):
-        self.steps  = steps
-        self.device = device
-        self.log    = log or (lambda msg, tag="info": print(msg))
+        self.steps     = steps
+        self.device    = device
+        self.log       = log or (lambda msg, tag="info": print(msg))
+        self.stop_flag = lambda: False  # переопределяется снаружи для остановки
 
     def run(self):
         total = len(self.steps)
         for i, step in enumerate(self.steps, 1):
+            if self.stop_flag():
+                self.log("⏹ Сценарий остановлен", "warning")
+                return
             t = step.get("type", "")
             p = step.get("params", {})
             label = STEP_KEY_LABELS.get(t, t)

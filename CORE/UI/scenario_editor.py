@@ -192,6 +192,7 @@ class ScenarioEditor(tk.Frame):
         self._is_connected  = is_connected or (lambda: bool(adb.connected_device))
         self._steps         = []
         self._running       = False
+        self._stop_requested = False
         ScenarioStorage.ensure_dir()
         self._build()
 
@@ -275,6 +276,14 @@ class ScenarioEditor(tk.Frame):
             style="start", width=16
         )
         self._run_btn.pack(side=tk.LEFT, padx=8)
+
+        self._stop_btn = create_button(
+            bottom, "⏹ Стоп", self._stop_scenario,
+            style="danger", width=10
+        )
+        self._stop_btn.pack(side=tk.LEFT, padx=4)
+        self._stop_btn.config(state=tk.DISABLED, fg=THEME["text_disabled"])
+
         create_button(bottom, "💾 Сохранить", self._save,
                       width=14).pack(side=tk.LEFT, padx=4)
 
@@ -476,14 +485,25 @@ class ScenarioEditor(tk.Frame):
             return
         self.after(1000, lambda: self._wait_for_connection(attempts + 1))
 
+    def _stop_scenario(self):
+        """Останавливает выполнение сценария."""
+        if self._running:
+            self._stop_requested = True
+            self.log("⏹ Остановка сценария...", "warning")
+            self._stop_btn.config(state=tk.DISABLED, fg=THEME["text_disabled"])
+
     def _start_running(self):
         """Запускает выполнение шагов сценария."""
         self._running = True
+        self._stop_requested = False
         self._run_btn.config(text="⏳ Выполняется...",
                              state=tk.DISABLED, fg=THEME["text_disabled"])
+        self._stop_btn.config(state=tk.NORMAL, fg=THEME["accent_red"])
 
         def _thread():
+            from processes.SCENARIO.scenario_01_runner import ScenarioRunner
             runner = ScenarioRunner(self._steps, self.adb.connected_device, self.log)
+            runner.stop_flag = lambda: self._stop_requested
             runner.run()
             self.after(0, self._on_run_done)
 
@@ -491,8 +511,10 @@ class ScenarioEditor(tk.Frame):
 
     def _on_run_done(self):
         self._running = False
+        self._stop_requested = False
         self._run_btn.config(text="▶ Запустить",
                              state=tk.NORMAL, fg=THEME["btn_start_fg"])
+        self._stop_btn.config(state=tk.DISABLED, fg=THEME["text_disabled"])
 
     # ── Публичный API ────────────────────────────────────────────────────────
 

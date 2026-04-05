@@ -120,9 +120,24 @@ echo [OK] Все пакеты готовы
 
 REM ── Запуск ───────────────────────────────────────────────
 if not exist "%~dp0CORE\main.py" (
-    echo ❌ Нет CORE\main.py
+    echo [!] Нет CORE\main.py
     pause
     exit /b 1
+)
+
+cd /d "%~dp0CORE"
+echo.
+echo  Запускаем MyBotX...
+REM Сворачиваем окно проверок
+powershell -command "(New-Object -ComObject Shell.Application).MinimizeAll()" >nul 2>&1
+python main.py
+if errorlevel 1 (
+    echo.
+    echo [!] Ошибка запуска — смотри текст выше.
+    pause
+    exit /b 1
+)
+exit /b 0
 )
 
 cd /d "%~dp0CORE"
