@@ -169,32 +169,56 @@ def main():
     log("Для остановки нажмите Ctrl+C")
     log("-" * 60)
 
-    was_running = False
-
-    try:
-        while True:
-            running = is_bs_running()
+    # ── Шаг 1: ждём пока BlueStacks запустится ──────────────
+    log("Проверяем состояние BlueStacks...")
+    while True:
+        if is_bs_running():
             pid = get_bs_pid()
-
-            if running and not was_running:
-                mem_str = get_bs_memory(pid) if pid else "N/A"
-                log(f"BlueStacks ЗАПУЩЕН (PID: {pid}, RAM: {mem_str})")
-
-            elif was_running and not running:
-                analyze_crash()
-
-            elif running and pid:
-                # Периодически логируем потребление памяти
-                mem_str = get_bs_memory(pid)
-                sys_mem = get_memory_info()
-                if sys_mem:
-                    log(f"OK | BS RAM: {mem_str} | Свободно системной: {sys_mem.get('available_gb', '?')} GB ({100 - sys_mem.get('used_pct', 0):.0f}% свободно)")
-
-            was_running = running
+            mem_str = get_bs_memory(pid) if pid else "N/A"
+            sys_mem = get_memory_info()
+            log(f"BlueStacks ОТКРЫТ (PID: {pid}, RAM: {mem_str})")
+            if sys_mem:
+                log(f"Системная RAM: {sys_mem['total_gb']} GB всего | {sys_mem['available_gb']} GB свободно | {sys_mem['used_pct']}% занято")
+            log("Начинаем отслеживание.")
+            log("-" * 60)
+            break
+        else:
+            log("BlueStacks не запущен — ожидаем запуска...")
             time.sleep(CHECK_INTERVAL)
 
-    except KeyboardInterrupt:
-        log("Мониторинг остановлен пользователем.")
+    # ── Шаг 2: мониторим пока работает ──────────────────────
+    iteration = 0
+    while True:
+        try:
+            iteration += 1
+            running = is_bs_running()
+
+            if not running:
+                # BlueStacks закрылся — анализируем
+                analyze_crash()
+                log("Мониторинг завершён — BlueStacks закрылся.")
+                break
+
+            # Всё ок — логируем состояние
+            pid = get_bs_pid()
+            mem_str = get_bs_memory(pid) if pid else "N/A"
+            sys_mem = get_memory_info()
+            if sys_mem:
+                avail = sys_mem.get("available_gb", "?")
+                used  = sys_mem.get("used_pct", 0)
+                log(f"[{iteration}] Работает | BS RAM: {mem_str} | Свободно: {avail} GB ({100-used:.0f}%)")
+            else:
+                log(f"[{iteration}] Работает | BS RAM: {mem_str}")
+
+        except KeyboardInterrupt:
+            log("Мониторинг остановлен пользователем (Ctrl+C).")
+            break
+        except Exception as e:
+            log(f"ОШИБКА в цикле: {e}")
+            import traceback
+            log(traceback.format_exc())
+
+        time.sleep(CHECK_INTERVAL)
 
 
 if __name__ == "__main__":
