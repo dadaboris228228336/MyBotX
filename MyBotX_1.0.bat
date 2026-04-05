@@ -154,5 +154,11 @@ if not exist "%~dp0CORE\main.py" (
 cd /d "%~dp0CORE"
 echo.
 echo ✅ Все проверки пройдены. Запускаем MyBotX...
-start "" /min cmd /c "python main.py"
-exit
+python main.py
+if errorlevel 1 (
+    echo.
+    echo ❌ Ошибка запуска — смотри текст выше.
+    pause
+    exit /b 1
+)
+exit /b 0
