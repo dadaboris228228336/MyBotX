@@ -17,6 +17,7 @@ a = Analysis(
         (str(ROOT / 'CORE' / 'mybotx.ico'), '.'),
         (str(ROOT / 'CONFIG'), 'CONFIG'),
         (str(ROOT / 'BOT_APPLICATIONS' / 'platform-tools'), 'BOT_APPLICATIONS/platform-tools'),
+        (str(ROOT / 'my_bot'), 'my_bot'),
     ],
     hiddenimports=[
         'PIL._tkinter_finder',
@@ -58,8 +59,8 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=False,          # без консоли
-    disable_windowed_traceback=False,
+    console=False,
+    disable_windowed_traceback=True,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,

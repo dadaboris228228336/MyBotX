@@ -32,9 +32,8 @@ echo [OK] Готово: BUILDER\dist\MyBotX.exe
 echo.
 
 if not exist "BUILDER\dist\CONFIG"              mkdir "BUILDER\dist\CONFIG"
-if not exist "BUILDER\dist\my_bot"             mkdir "BUILDER\dist\my_bot"
+if not exist "BUILDER\dist\my_bot\scenarios"   mkdir "BUILDER\dist\my_bot\scenarios"
 if not exist "BUILDER\dist\BOT_APPLICATIONS"   mkdir "BUILDER\dist\BOT_APPLICATIONS"
-if not exist "BUILDER\dist\CORE\temp"          mkdir "BUILDER\dist\CORE\temp"
 
 xcopy /E /I /Y "CONFIG"                              "BUILDER\dist\CONFIG"                            >nul
 xcopy /E /I /Y "my_bot"                              "BUILDER\dist\my_bot"                            >nul
