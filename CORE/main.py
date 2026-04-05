@@ -149,13 +149,18 @@ class BotMainWindow:
 
         create_separator(self.root).pack(fill=tk.X)
 
-        # Наполняем вкладки
-        self._build_main_tab()
-        self._build_check_tab()
-        self._build_bot_tab()
+        # Наполняем вкладки через модули tabs/
+        from UI.tabs.tab_main  import build as build_main
+        from UI.tabs.tab_check import build as build_check
+        from UI.tabs.tab_bot   import build as build_bot
+        from UI.tabs.tab_about import build as build_about
+
+        build_main(self)
+        build_check(self)
+        build_bot(self)
         self._build_auto_tab()
         self._build_settings_tab()
-        self._build_about_tab()
+        build_about(self)
 
         # Показываем первую вкладку
         self._switch_tab("main")
