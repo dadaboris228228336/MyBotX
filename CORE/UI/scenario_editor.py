@@ -135,11 +135,11 @@ class StepDialog(tk.Toplevel):
             entry("Количество попыток:", "retries", 3)
             entry("Пауза между попытками (сек):", "retry_delay", 2.0)
         elif t == "tap_coords":
-            entry("X:", "x", 540)
-            entry("Y:", "y", 960)
+            entry("X:", "x", 640)
+            entry("Y:", "y", 360)
         elif t == "swipe":
-            entry("X1:", "x1", 300); entry("Y1:", "y1", 960)
-            entry("X2:", "x2", 780); entry("Y2:", "y2", 960)
+            entry("X1:", "x1", 200); entry("Y1:", "y1", 360)
+            entry("X2:", "x2", 1000); entry("Y2:", "y2", 360)
             entry("Длительность (мс):", "duration", 300)
         elif t in ("pinch_out", "pinch_in"):
             entry("Количество раз:", "times", 3)

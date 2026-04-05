@@ -54,12 +54,9 @@ class ScenarioRunner:
                      int(p.get("duration", 300)))
             self.log(f"  👆 swipe", "dim")
         elif t == "pinch_out":
-            # Пробуем keyevent, если не сработало — parallel swipe
-            do_pinch(d, zoom_in=False, times=int(p.get("times", 1)), log=self.log)
-            self.log(f"  🔭 pinch_out x{p.get('times', 1)}", "dim")
+            do_pinch_swipe(d, zoom_in=False, times=int(p.get("times", 1)), log=self.log)
         elif t == "pinch_in":
-            do_pinch(d, zoom_in=True, times=int(p.get("times", 1)), log=self.log)
-            self.log(f"  🔍 pinch_in x{p.get('times', 1)}", "dim")
+            do_pinch_swipe(d, zoom_in=True, times=int(p.get("times", 1)), log=self.log)
         elif t == "key_home":
             do_key(d, 3)
             self.log("  🏠 HOME", "dim")

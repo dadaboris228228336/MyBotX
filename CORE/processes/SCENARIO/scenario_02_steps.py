@@ -38,8 +38,8 @@ STEP_KEY_LABELS = {v: k for k, v in STEP_TYPE_KEYS.items()}
 # Параметры по умолчанию для каждого типа шага
 STEP_DEFAULTS = {
     "find_and_tap": {"pattern": "", "threshold": 0.8, "retries": 3, "retry_delay": 2.0},
-    "tap_coords":   {"x": 540, "y": 960},
-    "swipe":        {"x1": 300, "y1": 960, "x2": 780, "y2": 960, "duration": 300},
+    "tap_coords":   {"x": 640, "y": 360},
+    "swipe":        {"x1": 200, "y1": 360, "x2": 1000, "y2": 360, "duration": 300},
     "pinch_out":    {"times": 3},
     "pinch_in":     {"times": 3},
     "key_home":     {},
