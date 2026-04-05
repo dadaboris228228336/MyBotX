@@ -10,6 +10,7 @@ import tkinter as tk
 import threading
 from pathlib import Path
 from tkinter import scrolledtext
+import tkinter.messagebox
 
 try:
     from dependency_checker import DependencyChecker
@@ -396,69 +397,174 @@ class BotMainWindow:
         self.bot_preview_label.image = photo  # Держим ссылку
 
     def _bot_crop_pattern(self):
-        """Открыть диалог вырезки паттерна"""
+        """Открыть диалог вырезки паттерна — проверяем наличие скриншота"""
         if not hasattr(self, "_last_screenshot_img"):
-            self._bot_log("❌ Сначала сделайте скриншот!", "error")
+            self._bot_log("⚠ Сначала нажмите кнопку 'Скриншот'!", "warning")
+            self.root.after(0, lambda: tk.messagebox.showwarning(
+                "Нет скриншота",
+                "Сначала сделайте скриншот экрана BlueStacks.\n\nНажмите кнопку '📸 Скриншот'.",
+                parent=self.root
+            ))
             return
-        threading.Thread(target=self._open_crop_dialog, daemon=True).start()
+        self.root.after(0, self._crop_window_new)
 
-    def _open_crop_dialog(self):
-        """Диалог выбора области для паттерна"""
-        from pathlib import Path
-        import tkinter.simpledialog as sd
-
-        name = sd.askstring("Паттерн", "Введите имя паттерна (например: btn_attack):",
-                            parent=self.root)
-        if not name:
-            return
-
-        # Открываем окно выбора области
-        self.root.after(0, lambda: self._crop_window(name))
-
-    def _crop_window(self, pattern_name: str):
-        """Окно с выбором области на скриншоте — сохраняет паттерн и добавляет в сценарий"""
+    def _crop_window_new(self):
+        """Окно вырезки паттерна с перетаскиваемым прямоугольником и выбором действия"""
+        import tkinter.messagebox
         from PIL import ImageTk
+        from UI.scenario_editor import STEP_TYPES, STEP_TYPE_KEYS
 
         win = tk.Toplevel(self.root)
-        win.title(f"Вырезать паттерн: {pattern_name}")
+        win.title("Вырезать паттерн")
         win.configure(bg=THEME["bg_main"])
+        win.resizable(False, False)
 
-        create_label(win, "Нарисуйте прямоугольник мышью, отпустите — паттерн сохранится",
-                     style="dim", bg=THEME["bg_main"]).pack(pady=4)
+        # ── Инструкция ──
+        create_label(win,
+                     "Нарисуйте прямоугольник на скриншоте. Можно перетащить или изменить размер.",
+                     style="dim", bg=THEME["bg_main"]).pack(pady=(6, 2))
 
+        # ── Canvas со скриншотом ──
         img = self._last_screenshot_img.copy()
-        img.thumbnail((900, 560))
+        img.thumbnail((900, 500))
         photo = ImageTk.PhotoImage(img)
 
         canvas = tk.Canvas(win, width=img.width, height=img.height,
                            bg=THEME["bg_main"], cursor="crosshair")
-        canvas.pack()
+        canvas.pack(padx=8)
         canvas.create_image(0, 0, anchor="nw", image=photo)
         canvas.image = photo
 
-        rect_id = [None]
-        start   = [0, 0]
+        # Состояние прямоугольника
+        rect = {"id": None, "x1": 50, "y1": 50, "x2": 200, "y2": 150}
+        drag = {"mode": None, "ox": 0, "oy": 0, "rx1": 0, "ry1": 0, "rx2": 0, "ry2": 0}
+        HANDLE = 10  # зона захвата края
 
-        def on_press(e):
-            start[0], start[1] = e.x, e.y
-            if rect_id[0]:
-                canvas.delete(rect_id[0])
-
-        def on_drag(e):
-            if rect_id[0]:
-                canvas.delete(rect_id[0])
-            rect_id[0] = canvas.create_rectangle(
-                start[0], start[1], e.x, e.y,
-                outline=THEME["accent_green"], width=2
+        def draw_rect():
+            if rect["id"]:
+                canvas.delete(rect["id"])
+            rect["id"] = canvas.create_rectangle(
+                rect["x1"], rect["y1"], rect["x2"], rect["y2"],
+                outline=THEME["accent_green"], width=2, dash=(4, 2)
             )
 
-        def on_release(e):
-            x1, y1 = min(start[0], e.x), min(start[1], e.y)
-            x2, y2 = max(start[0], e.x), max(start[1], e.y)
-            if x2 - x1 < 5 or y2 - y1 < 5:
+        draw_rect()
+
+        def get_mode(ex, ey):
+            x1, y1, x2, y2 = rect["x1"], rect["y1"], rect["x2"], rect["y2"]
+            near_l = abs(ex - x1) < HANDLE
+            near_r = abs(ex - x2) < HANDLE
+            near_t = abs(ey - y1) < HANDLE
+            near_b = abs(ey - y2) < HANDLE
+            inside = x1 < ex < x2 and y1 < ey < y2
+
+            if near_l and near_t: return "resize_tl"
+            if near_r and near_t: return "resize_tr"
+            if near_l and near_b: return "resize_bl"
+            if near_r and near_b: return "resize_br"
+            if near_l: return "resize_l"
+            if near_r: return "resize_r"
+            if near_t: return "resize_t"
+            if near_b: return "resize_b"
+            if inside:  return "move"
+            return "draw"
+
+        def update_cursor(ex, ey):
+            m = get_mode(ex, ey)
+            cursors = {
+                "move": "fleur",
+                "resize_tl": "top_left_corner", "resize_tr": "top_right_corner",
+                "resize_bl": "bottom_left_corner", "resize_br": "bottom_right_corner",
+                "resize_l": "left_side", "resize_r": "right_side",
+                "resize_t": "top_side", "resize_b": "bottom_side",
+                "draw": "crosshair",
+            }
+            canvas.config(cursor=cursors.get(m, "crosshair"))
+
+        def on_motion(e):
+            update_cursor(e.x, e.y)
+
+        def on_press(e):
+            drag["mode"] = get_mode(e.x, e.y)
+            drag["ox"], drag["oy"] = e.x, e.y
+            drag["rx1"], drag["ry1"] = rect["x1"], rect["y1"]
+            drag["rx2"], drag["ry2"] = rect["x2"], rect["y2"]
+
+        def on_drag(e):
+            dx, dy = e.x - drag["ox"], e.y - drag["oy"]
+            m = drag["mode"]
+            x1, y1, x2, y2 = drag["rx1"], drag["ry1"], drag["rx2"], drag["ry2"]
+
+            if m == "draw":
+                rect["x1"], rect["y1"] = drag["ox"], drag["oy"]
+                rect["x2"], rect["y2"] = e.x, e.y
+            elif m == "move":
+                rect["x1"], rect["y1"] = x1 + dx, y1 + dy
+                rect["x2"], rect["y2"] = x2 + dx, y2 + dy
+            elif m == "resize_l":  rect["x1"] = x1 + dx
+            elif m == "resize_r":  rect["x2"] = x2 + dx
+            elif m == "resize_t":  rect["y1"] = y1 + dy
+            elif m == "resize_b":  rect["y2"] = y2 + dy
+            elif m == "resize_tl": rect["x1"], rect["y1"] = x1+dx, y1+dy
+            elif m == "resize_tr": rect["x2"], rect["y1"] = x2+dx, y1+dy
+            elif m == "resize_bl": rect["x1"], rect["y2"] = x1+dx, y2+dy
+            elif m == "resize_br": rect["x2"], rect["y2"] = x2+dx, y2+dy
+
+            draw_rect()
+
+        canvas.bind("<Motion>",         on_motion)
+        canvas.bind("<ButtonPress-1>",  on_press)
+        canvas.bind("<B1-Motion>",      on_drag)
+
+        # ── Нижняя панель: имя + действие + кнопки ──
+        bottom = tk.Frame(win, bg=THEME["bg_panel"], padx=12, pady=10)
+        bottom.pack(fill=tk.X, padx=8, pady=6)
+
+        # Имя паттерна
+        row1 = tk.Frame(bottom, bg=THEME["bg_panel"])
+        row1.pack(fill=tk.X, pady=2)
+        create_label(row1, "Имя паттерна:", style="dim", bg=THEME["bg_panel"]).pack(side=tk.LEFT)
+        name_var = tk.StringVar(value="pattern_1")
+        tk.Entry(row1, textvariable=name_var, width=22,
+                 bg=THEME["bg_input"], fg=THEME["accent_blue"],
+                 font=THEME["font_normal"], relief=tk.FLAT,
+                 insertbackground=THEME["accent_green"]).pack(side=tk.LEFT, padx=8)
+
+        # Действие после нахождения
+        row2 = tk.Frame(bottom, bg=THEME["bg_panel"])
+        row2.pack(fill=tk.X, pady=2)
+        create_label(row2, "Действие:", style="dim", bg=THEME["bg_panel"]).pack(side=tk.LEFT)
+        action_var = tk.StringVar(value=STEP_TYPES[0])
+        action_menu = tk.OptionMenu(row2, action_var, *STEP_TYPES)
+        action_menu.config(bg=THEME["bg_input"], fg=THEME["accent_blue"],
+                           font=THEME["font_small"], relief=tk.FLAT,
+                           activebackground=THEME["bg_card"],
+                           highlightthickness=0, width=28)
+        action_menu["menu"].config(bg=THEME["bg_input"], fg=THEME["accent_blue"],
+                                   font=THEME["font_small"])
+        action_menu.pack(side=tk.LEFT, padx=8)
+
+        # Кнопки
+        btn_row = tk.Frame(bottom, bg=THEME["bg_panel"])
+        btn_row.pack(fill=tk.X, pady=(8, 0))
+
+        def on_save():
+            name = name_var.get().strip().replace(" ", "_")
+            if not name:
+                tk.messagebox.showwarning("Ошибка", "Введите имя паттерна", parent=win)
                 return
 
-            # Масштабируем координаты к оригинальному скриншоту
+            # Нормализуем координаты
+            x1 = min(rect["x1"], rect["x2"])
+            y1 = min(rect["y1"], rect["y2"])
+            x2 = max(rect["x1"], rect["x2"])
+            y2 = max(rect["y1"], rect["y2"])
+
+            if x2 - x1 < 5 or y2 - y1 < 5:
+                tk.messagebox.showwarning("Ошибка", "Выделите область на скриншоте", parent=win)
+                return
+
+            # Масштабируем к оригинальному скриншоту
             orig    = self._last_screenshot_img
             scale_x = orig.width  / img.width
             scale_y = orig.height / img.height
@@ -467,27 +573,27 @@ class BotMainWindow:
 
             cropped   = orig.crop((rx1, ry1, rx2, ry2))
             save_path = (Path(__file__).parent / "processes" / "BOT" / "patterns"
-                         / f"{pattern_name}.png")
+                         / f"{name}.png")
             cropped.save(save_path)
 
-            self._bot_log(
-                f"✅ Паттерн сохранён: {pattern_name}.png ({rx2-rx1}x{ry2-ry1}px)",
-                "success"
-            )
+            self._bot_log(f"✅ Паттерн сохранён: {name}.png ({rx2-rx1}x{ry2-ry1}px)", "success")
 
-            # Автоматически добавляем шаг в текущий сценарий
+            # Добавляем шаг в сценарий с выбранным действием
             if hasattr(self, "_scenario_editor"):
-                self._scenario_editor.add_find_and_tap_step(pattern_name)
-                self._bot_log(
-                    f"➕ Шаг 'Найти {pattern_name} и нажать' добавлен в сценарий",
-                    "info"
-                )
+                action_key = STEP_TYPE_KEYS.get(action_var.get(), "find_and_tap")
+                if action_key == "find_and_tap":
+                    self._scenario_editor.add_find_and_tap_step(name)
+                else:
+                    # Для других действий добавляем find_and_tap + выбранное действие
+                    self._scenario_editor.add_find_and_tap_step(name)
+                self._bot_log(f"➕ Шаг добавлен в сценарий: {action_var.get()}", "info")
 
             win.destroy()
 
-        canvas.bind("<ButtonPress-1>",  on_press)
-        canvas.bind("<B1-Motion>",      on_drag)
-        canvas.bind("<ButtonRelease-1>", on_release)
+        create_button(btn_row, "💾 Сохранить и добавить в сценарий",
+                      on_save, style="start", width=34).pack(side=tk.LEFT)
+        create_button(btn_row, "✖ Отмена",
+                      win.destroy, width=12).pack(side=tk.LEFT, padx=8)
 
     def _bot_collect(self):
         if not self.adb.connected_device:
