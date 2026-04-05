@@ -18,6 +18,7 @@ try:
     from UI.theme import THEME
     from UI.widgets import create_button, create_label, create_frame, create_separator
     from UI.pattern_editor import PatternEditor
+    from UI.scenario_editor import ScenarioEditor
 except ImportError:
     sys.path.insert(0, str(Path(__file__).parent))
     from dependency_checker import DependencyChecker
@@ -26,6 +27,7 @@ except ImportError:
     from UI.theme import THEME
     from UI.widgets import create_button, create_label, create_frame, create_separator
     from UI.pattern_editor import PatternEditor
+    from UI.scenario_editor import ScenarioEditor
 
 
 class BotMainWindow:
@@ -290,46 +292,16 @@ class BotMainWindow:
     def _build_bot_tab(self):
         frame = self.frames["bot"]
 
-        # Левая панель — управление
-        left = tk.Frame(frame, bg=THEME["bg_panel"], width=260)
-        left.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 8))
-        left.pack_propagate(False)
+        # Верхняя панель: скриншот + вырезать паттерн
+        top_row = tk.Frame(frame, bg=THEME["bg_main"])
+        top_row.pack(fill=tk.X, pady=(0, 6))
 
-        create_label(left, "⚙️ Управление ботом", style="header", bg=THEME["bg_panel"]).pack(pady=(12, 8), padx=10, anchor="w")
-        create_separator(left).pack(fill=tk.X, padx=10)
+        create_button(top_row, "📸 Скриншот",         self._bot_screenshot,    width=18).pack(side=tk.LEFT, padx=(0, 6))
+        create_button(top_row, "✂️ Вырезать паттерн", self._bot_crop_pattern,  width=20).pack(side=tk.LEFT)
 
-        # Кнопки действий
-        actions = [
-            ("📸 Скриншот",          self._bot_screenshot),
-            ("✂️ Вырезать паттерн",  self._bot_crop_pattern),
-            ("💰 Собрать ресурсы",   self._bot_collect),
-            ("⚔️ Начать атаку",      self._bot_attack),
-        ]
-        for label, cmd in actions:
-            create_button(left, label, cmd, width=24).pack(pady=4, padx=10)
-
-        create_separator(left).pack(fill=tk.X, padx=10, pady=8)
-
-        # Запись действий
-        create_label(left, "🔴 Запись действий", style="dim", bg=THEME["bg_panel"]).pack(padx=10, anchor="w", pady=(0,4))
-        self.record_btn = create_button(left, "🔴  Начать запись", self._bot_start_record, width=24)
-        self.record_btn.pack(pady=2, padx=10)
-        create_button(left, "▶️  Воспроизвести", self._bot_play_record, width=24).pack(pady=2, padx=10)
-        create_button(left, "💾  Сохранить сценарий", self._bot_save_record, width=24).pack(pady=2, padx=10)
-
-        create_separator(left).pack(fill=tk.X, padx=10, pady=8)
-
-        # Список паттернов
-        create_label(left, "🖼️ Паттерны", style="dim", bg=THEME["bg_panel"]).pack(padx=10, anchor="w")
-        self._refresh_patterns_list(left)
-
-        # Правая панель — превью скриншота + лог
-        right = tk.Frame(frame, bg=THEME["bg_main"])
-        right.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-
-        # Превью
-        preview_frame = tk.Frame(right, bg=THEME["bg_card"], height=200)
-        preview_frame.pack(fill=tk.X, pady=(0, 8))
+        # Превью скриншота
+        preview_frame = tk.Frame(frame, bg=THEME["bg_card"], height=140)
+        preview_frame.pack(fill=tk.X, pady=(0, 6))
         preview_frame.pack_propagate(False)
 
         self.bot_preview_label = tk.Label(
@@ -341,22 +313,27 @@ class BotMainWindow:
         )
         self.bot_preview_label.pack(expand=True)
 
-        # Лог бота
+        # Редактор сценариев
+        self._scenario_editor = ScenarioEditor(frame, self.adb, self._bot_log)
+        self._scenario_editor.pack(fill=tk.BOTH, expand=True)
+
+        # Лог бота (внизу)
         self.bot_log = scrolledtext.ScrolledText(
-            right,
+            frame,
             wrap=tk.WORD,
             font=THEME["font_log"],
             bg=THEME["bg_input"],
             fg=THEME["text_primary"],
             relief=tk.FLAT,
             bd=0,
-            height=10,
+            height=7,
         )
-        self.bot_log.pack(fill=tk.BOTH, expand=True)
+        self.bot_log.pack(fill=tk.X)
         self.bot_log.tag_config("success", foreground=THEME["accent_green"])
         self.bot_log.tag_config("error",   foreground=THEME["accent_red"])
         self.bot_log.tag_config("warning", foreground=THEME["accent_orange"])
         self.bot_log.tag_config("info",    foreground=THEME["accent_blue"])
+        self.bot_log.tag_config("dim",     foreground=THEME["text_secondary"])
 
     def _refresh_patterns_list(self, parent):
         """Показывает список паттернов из папки patterns/"""
