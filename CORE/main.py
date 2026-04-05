@@ -715,7 +715,7 @@ class BotMainWindow:
         threading.Thread(target=_monitor, daemon=True).start()
 
     def _minimize_other_windows(self):
-        """Сворачивает все окна кроме MyBotX и BlueStacks."""
+        """Сворачивает все окна кроме MyBotX и BlueStacks, затем поднимает MyBotX."""
         try:
             import win32gui, win32con
 
@@ -728,24 +728,26 @@ class BotMainWindow:
                 title = win32gui.GetWindowText(hwnd).strip()
                 if not title:
                     return
-                # Оставляем наше окно
                 if hwnd == our_hwnd:
                     return
-                # Оставляем BlueStacks
                 if any(bs in title.lower() for bs in BS_TITLES):
-                    # Разворачиваем BlueStacks если свёрнут
                     win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
                     return
-                # Системные окна не трогаем
                 if title in ("Program Manager", "Windows Input Experience",
                              "Microsoft Text Input Application"):
                     return
-                # Всё остальное сворачиваем
                 win32gui.ShowWindow(hwnd, win32con.SW_MINIMIZE)
 
             win32gui.EnumWindows(cb, None)
+
+            # Поднимаем окно MyBotX на передний план
+            win32gui.ShowWindow(our_hwnd, win32con.SW_RESTORE)
+            win32gui.SetForegroundWindow(our_hwnd)
+
         except Exception:
-            pass
+            # Fallback через tkinter
+            self.root.lift()
+            self.root.focus_force()
 
     def _on_close_user(self):
         """Пользователь закрыл окно — автосохранение сценария, удаляем PID и лог"""
