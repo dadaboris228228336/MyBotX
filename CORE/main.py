@@ -1269,13 +1269,13 @@ class BotMainWindow:
             return
 
         self._set_stat("ADB", f"✅ {serial}", "success")
-
-        # Фиксируем разрешение Android 1280x720 через ADB
-        self.bluestacks.set_fixed_resolution(serial, self._log_direct)
-        time.sleep(2.0)  # ждём пока Android применит новое разрешение
-
         self._set_status("🎮 Запускаем Clash of Clans...", "info")
         self._set_stat("Игра", "⏳ Запуск...", "warning")
+
+        # Фиксируем разрешение в фоне — не блокируем запуск игры
+        def _fix_res():
+            self.bluestacks.set_fixed_resolution(serial, self._log_direct)
+        threading.Thread(target=_fix_res, daemon=True).start()
 
         success = self.adb.launch_app("com.supercell.clashofclans", "com.supercell.titan.GameApp")
 
