@@ -412,9 +412,10 @@ class BotMainWindow:
             img.thumbnail((600, 190))
             photo = ImageTk.PhotoImage(img)
 
-            # Сохраняем последний скриншот для вырезки паттерна
+            # Сохраняем ОРИГИНАЛ для вырезки паттерна (не уменьшенное превью!)
             self._last_screenshot = arr
-            self._last_screenshot_img = img.copy()
+            self._last_screenshot_orig = Image.fromarray(arr[:, :, ::-1])  # оригинал
+            self._last_screenshot_img  = img.copy()  # превью для отображения
 
             self.root.after(0, lambda: self._show_preview(photo))
             self._bot_log("✅ Скриншот готов. Можно вырезать паттерн.", "success")
@@ -428,7 +429,7 @@ class BotMainWindow:
 
     def _bot_crop_pattern(self):
         """Открыть диалог вырезки паттерна — проверяем наличие скриншота"""
-        if not hasattr(self, "_last_screenshot_img"):
+        if not hasattr(self, "_last_screenshot_orig"):
             self._bot_log("⚠ Сначала нажмите кнопку 'Скриншот'!", "warning")
             self.root.after(0, lambda: tk.messagebox.showwarning(
                 "Нет скриншота",
@@ -454,12 +455,17 @@ class BotMainWindow:
                      "Нарисуйте прямоугольник на скриншоте. Можно перетащить или изменить размер.",
                      style="dim", bg=THEME["bg_main"]).pack(pady=(6, 2))
 
-        # ── Canvas со скриншотом ──
-        img = self._last_screenshot_img.copy()
-        img.thumbnail((900, 500))
-        photo = ImageTk.PhotoImage(img)
+        # ── Canvas со скриншотом — показываем оригинал, масштабированный под экран ──
+        orig = self._last_screenshot_orig.copy()  # оригинал PIL Image
+        display = orig.copy()
+        display.thumbnail((900, 500))
+        photo = ImageTk.PhotoImage(display)
 
-        canvas = tk.Canvas(win, width=img.width, height=img.height,
+        # Коэффициент масштаба: display → orig
+        scale_x = orig.width  / display.width
+        scale_y = orig.height / display.height
+
+        canvas = tk.Canvas(win, width=display.width, height=display.height,
                            bg=THEME["bg_main"], cursor="crosshair")
         canvas.pack(padx=8)
         canvas.create_image(0, 0, anchor="nw", image=photo)
@@ -578,10 +584,7 @@ class BotMainWindow:
                 tk.messagebox.showwarning("Ошибка", "Выделите область на скриншоте", parent=win)
                 return
 
-            # Масштабируем к оригинальному скриншоту
-            orig    = self._last_screenshot_img
-            scale_x = orig.width  / img.width
-            scale_y = orig.height / img.height
+            # Масштабируем координаты к оригинальному скриншоту
             rx1, ry1 = int(x1 * scale_x), int(y1 * scale_y)
             rx2, ry2 = int(x2 * scale_x), int(y2 * scale_y)
 
