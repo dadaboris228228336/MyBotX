@@ -715,32 +715,32 @@ class BotMainWindow:
         threading.Thread(target=_monitor, daemon=True).start()
 
     def _minimize_other_windows(self):
-        """Сворачивает все окна кроме MyBotX и BlueStacks, затем поднимает MyBotX."""
+        """Сворачивает все окна кроме MyBotX. BlueStacks разворачивает только если запущен."""
         try:
             import win32gui, win32con
 
-            BS_TITLES = ["bluestacks app player", "bluestacks", "hd-player"]
-            OUR_TITLE = "mybotx"
-            our_hwnd = None
+            BS_TITLES   = ["bluestacks app player", "bluestacks", "hd-player"]
+            OUR_TITLE   = "mybotx"
+            our_hwnd    = None
+            bs_hwnd     = None
 
             def cb(hwnd, _):
-                nonlocal our_hwnd
+                nonlocal our_hwnd, bs_hwnd
                 if not win32gui.IsWindowVisible(hwnd):
                     return
                 title = win32gui.GetWindowText(hwnd).strip()
                 if not title:
                     return
-
                 title_lower = title.lower()
 
-                # Наше окно — запоминаем, не сворачиваем
+                # Наше окно
                 if OUR_TITLE in title_lower:
                     our_hwnd = hwnd
                     return
 
-                # BlueStacks — разворачиваем
+                # BlueStacks — запоминаем, не трогаем пока
                 if any(bs in title_lower for bs in BS_TITLES):
-                    win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+                    bs_hwnd = hwnd
                     return
 
                 # Системные окна не трогаем
@@ -748,17 +748,20 @@ class BotMainWindow:
                              "Microsoft Text Input Application"):
                     return
 
-                # Всё остальное сворачиваем (включая CMD/Python консоль)
+                # Всё остальное сворачиваем
                 win32gui.ShowWindow(hwnd, win32con.SW_MINIMIZE)
 
             win32gui.EnumWindows(cb, None)
 
-            # Поднимаем наше окно на передний план
+            # BlueStacks — разворачиваем только если он запущен
+            if bs_hwnd:
+                win32gui.ShowWindow(bs_hwnd, win32con.SW_RESTORE)
+
+            # Наше окно поднимаем на передний план
             if our_hwnd:
                 win32gui.ShowWindow(our_hwnd, win32con.SW_RESTORE)
                 win32gui.SetForegroundWindow(our_hwnd)
             else:
-                # Fallback через tkinter
                 self.root.lift()
                 self.root.attributes('-topmost', True)
                 self.root.after(200, lambda: self.root.attributes('-topmost', False))
