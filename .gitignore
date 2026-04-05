@@ -39,3 +39,7 @@ $RECYCLE.BIN/
 # Тесты / кэш
 .pytest_cache/
 .hypothesis/
+
+# Session logs (auto-deleted on close)
+logs/
+CORE/temp/

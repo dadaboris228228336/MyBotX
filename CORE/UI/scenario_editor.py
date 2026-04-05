@@ -243,7 +243,7 @@ class ScenarioEditor(tk.Frame):
         create_button(top, "✏ Переим.",   self._rename_scenario, width=10).pack(side=tk.LEFT, padx=2)
         create_button(top, "🗑 Удалить",  self._delete_scenario, width=10).pack(side=tk.LEFT, padx=2)
 
-        self._scenario_var.trace_add("write", lambda *_: self._load_current())
+        # trace_add добавляется в конце _build, после создания _listbox
         self._refresh_scenario_list()
 
         create_separator(self).pack(fill=tk.X)
@@ -333,6 +333,12 @@ class ScenarioEditor(tk.Frame):
 
         create_button(bottom, "💾 Сохранить", self._save_scenario, width=14).pack(side=tk.LEFT, padx=4)
         create_button(bottom, "📂 Загрузить",  self._load_current,  width=14).pack(side=tk.LEFT, padx=4)
+
+        # Теперь все виджеты созданы — безопасно вешаем trace
+        self._scenario_var.trace_add("write", lambda *_: self._load_current())
+        # Загружаем первый сценарий если есть
+        if self._scenario_var.get():
+            self._load_current()
 
     # ── Динамическая форма параметров ────────────────────────────────────────
 

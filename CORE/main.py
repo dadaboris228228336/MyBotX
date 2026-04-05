@@ -12,6 +12,15 @@ from pathlib import Path
 from tkinter import scrolledtext
 import tkinter.messagebox
 
+# Инициализируем логгер сессии
+import sys as _sys
+sys.path.insert(0, str(Path(__file__).parent))
+try:
+    import session_logger
+    session_logger.init()
+except Exception:
+    pass
+
 try:
     from dependency_checker import DependencyChecker
     from bluestacks_manager import BlueStacksManager
@@ -366,6 +375,10 @@ class BotMainWindow:
     def _bot_append_log(self, msg: str, tag: str):
         self.bot_log.insert(tk.END, msg + "\n", tag)
         self.bot_log.see(tk.END)
+        try:
+            session_logger.write(msg, tag)
+        except Exception:
+            pass
 
     def _bot_screenshot(self):
         """Сделать скриншот и показать превью"""
@@ -657,10 +670,14 @@ class BotMainWindow:
         self._bot_log("ℹ️ Сохранение сценария пока не реализовано.", "warning")
 
     def _on_close_user(self):
-        """Пользователь закрыл окно — удаляем PID, BlueStacks НЕ трогаем"""
+        """Пользователь закрыл окно — удаляем PID и лог сессии"""
         try:
             if self._pid_file.exists():
                 self._pid_file.unlink()
+        except Exception:
+            pass
+        try:
+            session_logger._cleanup()
         except Exception:
             pass
         self.root.destroy()
@@ -1255,7 +1272,7 @@ class BotMainWindow:
 
         # Фиксируем разрешение Android 1280x720 через ADB
         self.bluestacks.set_fixed_resolution(serial, self._log_direct)
-        time.sleep(0.3)
+        time.sleep(2.0)  # ждём пока Android применит новое разрешение
 
         self._set_status("🎮 Запускаем Clash of Clans...", "info")
         self._set_stat("Игра", "⏳ Запуск...", "warning")
@@ -1338,6 +1355,10 @@ class BotMainWindow:
     def _append_log(self, message: str, tag: str):
         self.log_text.insert(tk.END, message + "\n", tag)
         self.log_text.see(tk.END)
+        try:
+            session_logger.write(message, tag)
+        except Exception:
+            pass
 
     def _set_stat(self, key: str, text: str, style: str = "normal"):
         """Обновить статус-метку внизу главной вкладки"""
