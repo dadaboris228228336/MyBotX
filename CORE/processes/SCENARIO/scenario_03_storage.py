@@ -8,7 +8,8 @@ SCENARIO/scenario_03_storage.py
 import json
 from pathlib import Path
 
-SCENARIOS_DIR = Path(__file__).parent.parent.parent / "temp" / "scenarios"
+# Сценарии хранятся в my_bot/scenarios/ — постоянная папка вне temp
+SCENARIOS_DIR = Path(__file__).parent.parent.parent.parent / "my_bot" / "scenarios"
 
 
 class ScenarioStorage:

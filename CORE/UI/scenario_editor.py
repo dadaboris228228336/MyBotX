@@ -241,6 +241,12 @@ class ScenarioEditor(tk.Frame):
         sb.config(command=self._listbox.yview)
         self._listbox.bind("<Double-Button-1>", lambda e: self._edit_step())
 
+        # Drag & drop для перетаскивания шагов
+        self._drag_start_index = None
+        self._listbox.bind("<ButtonPress-1>",   self._on_drag_start)
+        self._listbox.bind("<B1-Motion>",        self._on_drag_motion)
+        self._listbox.bind("<ButtonRelease-1>",  self._on_drag_release)
+
         # Кнопки управления шагами
         btns = tk.Frame(list_frame, bg=THEME["bg_main"])
         btns.pack(fill=tk.X, pady=(4, 0))
@@ -329,6 +335,39 @@ class ScenarioEditor(tk.Frame):
             return
         for i, s in enumerate(self._steps, 1):
             self._listbox.insert(tk.END, f"  {i}. {step_label(s)}")
+
+    # ── Drag & Drop ──────────────────────────────────────────────────────────
+
+    def _on_drag_start(self, event):
+        self._drag_start_index = self._listbox.nearest(event.y)
+        self._listbox.config(cursor="fleur")
+
+    def _on_drag_motion(self, event):
+        if self._drag_start_index is None or not self._steps:
+            return
+        target = self._listbox.nearest(event.y)
+        if target != self._drag_start_index:
+            # Подсвечиваем целевую позицию
+            self._listbox.selection_clear(0, tk.END)
+            self._listbox.selection_set(target)
+
+    def _on_drag_release(self, event):
+        if self._drag_start_index is None or not self._steps:
+            self._listbox.config(cursor="")
+            return
+
+        target = self._listbox.nearest(event.y)
+        src = self._drag_start_index
+
+        if src != target and 0 <= src < len(self._steps) and 0 <= target < len(self._steps):
+            # Перемещаем шаг
+            step = self._steps.pop(src)
+            self._steps.insert(target, step)
+            self._refresh_listbox()
+            self._listbox.selection_set(target)
+
+        self._drag_start_index = None
+        self._listbox.config(cursor="")
 
     # ── Управление сценариями ────────────────────────────────────────────────
 
