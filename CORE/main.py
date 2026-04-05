@@ -719,35 +719,54 @@ class BotMainWindow:
         try:
             import win32gui, win32con
 
-            our_hwnd = self.root.winfo_id()
             BS_TITLES = ["bluestacks app player", "bluestacks", "hd-player"]
+            OUR_TITLE = "mybotx"
+            our_hwnd = None
 
             def cb(hwnd, _):
+                nonlocal our_hwnd
                 if not win32gui.IsWindowVisible(hwnd):
                     return
                 title = win32gui.GetWindowText(hwnd).strip()
                 if not title:
                     return
-                if hwnd == our_hwnd:
+
+                title_lower = title.lower()
+
+                # Наше окно — запоминаем, не сворачиваем
+                if OUR_TITLE in title_lower:
+                    our_hwnd = hwnd
                     return
-                if any(bs in title.lower() for bs in BS_TITLES):
+
+                # BlueStacks — разворачиваем
+                if any(bs in title_lower for bs in BS_TITLES):
                     win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
                     return
+
+                # Системные окна не трогаем
                 if title in ("Program Manager", "Windows Input Experience",
                              "Microsoft Text Input Application"):
                     return
+
+                # Всё остальное сворачиваем (включая CMD/Python консоль)
                 win32gui.ShowWindow(hwnd, win32con.SW_MINIMIZE)
 
             win32gui.EnumWindows(cb, None)
 
-            # Поднимаем окно MyBotX на передний план
-            win32gui.ShowWindow(our_hwnd, win32con.SW_RESTORE)
-            win32gui.SetForegroundWindow(our_hwnd)
+            # Поднимаем наше окно на передний план
+            if our_hwnd:
+                win32gui.ShowWindow(our_hwnd, win32con.SW_RESTORE)
+                win32gui.SetForegroundWindow(our_hwnd)
+            else:
+                # Fallback через tkinter
+                self.root.lift()
+                self.root.attributes('-topmost', True)
+                self.root.after(200, lambda: self.root.attributes('-topmost', False))
 
         except Exception:
-            # Fallback через tkinter
             self.root.lift()
-            self.root.focus_force()
+            self.root.attributes('-topmost', True)
+            self.root.after(200, lambda: self.root.attributes('-topmost', False))
 
     def _on_close_user(self):
         """Пользователь закрыл окно — автосохранение сценария, удаляем PID и лог"""
