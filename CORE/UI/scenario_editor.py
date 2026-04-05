@@ -280,9 +280,12 @@ class ScenarioEditor(tk.Frame):
         # Кнопки управления шагами
         step_btns = tk.Frame(list_frame, bg=THEME["bg_main"])
         step_btns.pack(fill=tk.X, padx=4, pady=2)
-        create_button(step_btns, "▲", self._move_up,     width=4).pack(side=tk.LEFT, padx=1)
-        create_button(step_btns, "▼", self._move_down,   width=4).pack(side=tk.LEFT, padx=1)
-        create_button(step_btns, "🗑", self._delete_step, width=4).pack(side=tk.LEFT, padx=1)
+        create_button(step_btns, "▲",  self._move_up,     width=4).pack(side=tk.LEFT, padx=1)
+        create_button(step_btns, "▼",  self._move_down,   width=4).pack(side=tk.LEFT, padx=1)
+        create_button(step_btns, "✏",  self._edit_step,   width=4).pack(side=tk.LEFT, padx=1)
+        create_button(step_btns, "🗑",  self._delete_step, width=4).pack(side=tk.LEFT, padx=1)
+        # Двойной клик тоже открывает редактор
+        self._listbox.bind("<Double-Button-1>", lambda e: self._edit_step())
 
         # Форма добавления шага (правая часть)
         form_outer = tk.Frame(middle, bg=THEME["bg_panel"], width=260)
@@ -501,6 +504,122 @@ class ScenarioEditor(tk.Frame):
         removed = self._steps.pop(i)
         self._refresh_listbox()
         self.log(f"🗑 Удалён шаг: {self._step_label(removed)}", "dim")
+
+    def _edit_step(self):
+        """Открывает окно редактирования выбранного шага"""
+        i = self._selected_index()
+        if i is None:
+            self.log("⚠ Выберите шаг для редактирования", "warning")
+            return
+        step = self._steps[i]
+        self._open_edit_window(i, step)
+
+    def _open_edit_window(self, index: int, step: dict):
+        """Окно редактирования шага"""
+        win = tk.Toplevel(self)
+        win.title(f"Редактировать шаг {index + 1}")
+        win.configure(bg=THEME["bg_panel"])
+        win.resizable(False, False)
+        win.grab_set()
+
+        t_key   = step["type"]
+        t_label = STEP_KEY_LABELS.get(t_key, t_key)
+        p       = dict(step.get("params", {}))
+
+        create_label(win, f"Шаг {index + 1}: {t_label}",
+                     style="header", bg=THEME["bg_panel"]).pack(padx=16, pady=(12, 4), anchor="w")
+        create_separator(win).pack(fill=tk.X, padx=16)
+
+        form = tk.Frame(win, bg=THEME["bg_panel"])
+        form.pack(padx=16, pady=10, fill=tk.X)
+
+        widgets = {}
+
+        def make_entry(label, key, default):
+            row = tk.Frame(form, bg=THEME["bg_panel"])
+            row.pack(fill=tk.X, pady=3)
+            create_label(row, label, style="dim", bg=THEME["bg_panel"], width=22, anchor="w").pack(side=tk.LEFT)
+            var = tk.StringVar(value=str(p.get(key, default)))
+            tk.Entry(row, textvariable=var, width=20,
+                     bg=THEME["bg_input"], fg=THEME["accent_blue"],
+                     font=THEME["font_small"], relief=tk.FLAT,
+                     insertbackground=THEME["accent_green"]).pack(side=tk.LEFT, padx=6)
+            widgets[key] = var
+
+        def make_pattern_selector(key):
+            row = tk.Frame(form, bg=THEME["bg_panel"])
+            row.pack(fill=tk.X, pady=3)
+            create_label(row, "Паттерн:", style="dim", bg=THEME["bg_panel"], width=22, anchor="w").pack(side=tk.LEFT)
+            patterns = [f.stem for f in PATTERNS_DIR.glob("*.png")] or ["(нет паттернов)"]
+            current  = p.get(key, patterns[0])
+            if current not in patterns:
+                patterns.insert(0, current)
+            var = tk.StringVar(value=current)
+            m = tk.OptionMenu(row, var, *patterns)
+            m.config(bg=THEME["bg_input"], fg=THEME["accent_blue"],
+                     font=THEME["font_small"], relief=tk.FLAT,
+                     activebackground=THEME["bg_card"],
+                     highlightthickness=0, width=22)
+            m["menu"].config(bg=THEME["bg_input"], fg=THEME["accent_blue"],
+                             font=THEME["font_small"])
+            m.pack(side=tk.LEFT, padx=6)
+            widgets[key] = var
+
+        # Поля в зависимости от типа шага
+        if t_key == "find_and_tap":
+            make_pattern_selector("pattern")
+            make_entry("Порог (0-1):",              "threshold",   0.8)
+            make_entry("Попыток:",                  "retries",     3)
+            make_entry("Пауза между попытками (с):", "retry_delay", 2.0)
+        elif t_key == "tap_coords":
+            make_entry("X:", "x", 540)
+            make_entry("Y:", "y", 960)
+        elif t_key == "swipe":
+            make_entry("X1:", "x1", 300)
+            make_entry("Y1:", "y1", 960)
+            make_entry("X2:", "x2", 780)
+            make_entry("Y2:", "y2", 960)
+            make_entry("Длительность (мс):", "duration", 300)
+        elif t_key in ("pinch_out", "pinch_in"):
+            make_entry("Количество раз:", "times", 3)
+        elif t_key in ("launch_app", "stop_app"):
+            make_entry("Package:", "package", "com.supercell.clashofclans")
+        elif t_key == "input_text":
+            make_entry("Текст:", "text", "")
+        elif t_key == "wait":
+            make_entry("Секунд:", "seconds", 2.0)
+        else:
+            create_label(form, "Нет параметров для этого шага",
+                         style="dim", bg=THEME["bg_panel"]).pack()
+
+        # Кнопки
+        btn_row = tk.Frame(win, bg=THEME["bg_panel"])
+        btn_row.pack(padx=16, pady=(4, 12), fill=tk.X)
+
+        def on_save():
+            try:
+                new_params = {}
+                for key, var in widgets.items():
+                    val = var.get()
+                    # Приводим к нужному типу
+                    if key in ("x", "y", "x1", "y1", "x2", "y2", "duration", "times", "retries"):
+                        new_params[key] = int(val)
+                    elif key in ("threshold", "retry_delay", "seconds"):
+                        new_params[key] = float(val)
+                    else:
+                        new_params[key] = val
+            except ValueError as e:
+                self.log(f"❌ Неверное значение: {e}", "error")
+                return
+
+            self._steps[index] = {"type": t_key, "params": new_params}
+            self._refresh_listbox()
+            self._listbox.selection_set(index)
+            self.log(f"✏ Шаг {index + 1} обновлён: {t_label}", "info")
+            win.destroy()
+
+        create_button(btn_row, "💾 Сохранить", on_save, style="start", width=16).pack(side=tk.LEFT)
+        create_button(btn_row, "✖ Отмена", win.destroy, width=12).pack(side=tk.LEFT, padx=8)
 
     # ── Управление сценариями ────────────────────────────────────────────────
 

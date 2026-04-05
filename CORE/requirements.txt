@@ -2,3 +2,4 @@ psutil==5.9.6
 Pillow==10.1.0
 opencv-python==4.8.1.78
 numpy==1.26.4
+pywin32==306

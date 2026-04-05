@@ -133,6 +133,15 @@ if errorlevel 1 (
     if errorlevel 1 ( echo    ❌ Не удалось установить opencv & pause & exit /b 1 )
 )
 
+echo 🔍 Проверка pywin32...
+python -c "import win32gui; print('   ✅ pywin32 OK')" 2>nul
+if errorlevel 1 (
+    echo    ❌ pywin32 — устанавливаем...
+    python -m pip install pywin32==306
+    python -c "import win32gui; print('   ✅ pywin32 установлен')" 2>nul
+    if errorlevel 1 ( echo    ❌ Не удалось установить pywin32 & pause & exit /b 1 )
+)
+
 echo ────────────────────────────────────────
 echo ✅ Пакеты готовы
 

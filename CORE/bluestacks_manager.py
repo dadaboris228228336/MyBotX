@@ -82,3 +82,24 @@ class BlueStacksManager:
     def get_bluestacks_processes(self) -> list:
         """ПРОЦЕСС 13: Получение информации о запущенных процессах BlueStacks"""
         return BSProcess04Control.get_bluestacks_processes()
+
+    def set_fixed_window_size(self, log=None) -> bool:
+        """ПРОЦЕСС 14: Фиксирует разрешение Android 1280x720 через ADB"""
+        from processes.BLUESTACKS.bs_05_window import set_fixed_resolution
+        # device берём из advanced_adb_manager — передаётся снаружи
+        return False  # вызывается напрямую из main.py с device
+
+    def set_fixed_resolution(self, device: str, log=None) -> bool:
+        """ПРОЦЕСС 14: Фиксирует разрешение Android 1280x720 через ADB"""
+        from processes.BLUESTACKS.bs_05_window import set_fixed_resolution
+        return set_fixed_resolution(device, log)
+
+    def minimize_window(self, log=None) -> bool:
+        """ПРОЦЕСС 15: Сворачивает окно BlueStacks"""
+        from processes.BLUESTACKS.bs_05_window import minimize_window
+        return minimize_window(log)
+
+    def restore_window(self, log=None) -> bool:
+        """ПРОЦЕСС 16: Разворачивает окно BlueStacks"""
+        from processes.BLUESTACKS.bs_05_window import restore_window
+        return restore_window(log)

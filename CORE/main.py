@@ -297,14 +297,18 @@ class BotMainWindow:
 
         # Верхняя панель: скриншот + вырезать паттерн
         top_row = tk.Frame(frame, bg=THEME["bg_main"])
-        top_row.pack(fill=tk.X, pady=(0, 6))
+        top_row.pack(fill=tk.X, pady=(0, 4))
 
-        create_button(top_row, "📸 Скриншот",         self._bot_screenshot,    width=18).pack(side=tk.LEFT, padx=(0, 6))
-        create_button(top_row, "✂️ Вырезать паттерн", self._bot_crop_pattern,  width=20).pack(side=tk.LEFT)
+        create_button(top_row, "📸 Скриншот",         self._bot_screenshot,   width=18).pack(side=tk.LEFT, padx=(0, 6))
+        create_button(top_row, "✂️ Вырезать паттерн", self._bot_crop_pattern, width=20).pack(side=tk.LEFT)
 
-        # Превью скриншота
-        preview_frame = tk.Frame(frame, bg=THEME["bg_card"], height=140)
-        preview_frame.pack(fill=tk.X, pady=(0, 6))
+        # Превью + лог рядом
+        preview_row = tk.Frame(frame, bg=THEME["bg_main"])
+        preview_row.pack(fill=tk.X, pady=(0, 4))
+
+        # Превью скриншота (слева)
+        preview_frame = tk.Frame(preview_row, bg=THEME["bg_card"], height=140, width=420)
+        preview_frame.pack(side=tk.LEFT, fill=tk.Y)
         preview_frame.pack_propagate(False)
 
         self.bot_preview_label = tk.Label(
@@ -316,27 +320,33 @@ class BotMainWindow:
         )
         self.bot_preview_label.pack(expand=True)
 
-        # Редактор сценариев
-        self._scenario_editor = ScenarioEditor(frame, self.adb, self._bot_log)
-        self._scenario_editor.pack(fill=tk.BOTH, expand=True)
+        # Лог бота (справа от скриншота)
+        log_frame = tk.Frame(preview_row, bg=THEME["bg_input"])
+        log_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(6, 0))
 
-        # Лог бота (внизу)
+        create_label(log_frame, "📋 Лог:", style="dim",
+                     bg=THEME["bg_input"]).pack(anchor="w", padx=4, pady=(2, 0))
+
         self.bot_log = scrolledtext.ScrolledText(
-            frame,
+            log_frame,
             wrap=tk.WORD,
             font=THEME["font_log"],
             bg=THEME["bg_input"],
             fg=THEME["text_primary"],
             relief=tk.FLAT,
             bd=0,
-            height=7,
+            height=8,
         )
-        self.bot_log.pack(fill=tk.X)
+        self.bot_log.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
         self.bot_log.tag_config("success", foreground=THEME["accent_green"])
         self.bot_log.tag_config("error",   foreground=THEME["accent_red"])
         self.bot_log.tag_config("warning", foreground=THEME["accent_orange"])
         self.bot_log.tag_config("info",    foreground=THEME["accent_blue"])
         self.bot_log.tag_config("dim",     foreground=THEME["text_secondary"])
+
+        # Редактор сценариев (внизу)
+        self._scenario_editor = ScenarioEditor(frame, self.adb, self._bot_log)
+        self._scenario_editor.pack(fill=tk.BOTH, expand=True)
 
     def _refresh_patterns_list(self, parent):
         """Показывает список паттернов из папки patterns/"""
@@ -879,7 +889,8 @@ class BotMainWindow:
         # ── BlueStacks настройки ──
         create_label(scroll, "📱 BlueStacks", style="dim", bg=THEME["bg_main"]).pack(anchor="w", pady=(0, 4))
 
-        bs_path = config.get("bluestacks", {}).get("path", "")
+        bs_cfg  = config.get("bluestacks", {})
+        bs_path = bs_cfg.get("path", "")
         row3 = tk.Frame(scroll, bg=THEME["bg_main"])
         row3.pack(fill=tk.X, pady=4)
         create_label(row3, "Путь к HD-Player.exe:", style="normal", bg=THEME["bg_main"], width=22, anchor="w").pack(side=tk.LEFT)
@@ -888,6 +899,25 @@ class BotMainWindow:
                                     insertbackground=THEME["accent_green"])
         self.cfg_bs_path.insert(0, bs_path)
         self.cfg_bs_path.pack(side=tk.LEFT, padx=8)
+
+        # Разрешение окна BlueStacks
+        row_res = tk.Frame(scroll, bg=THEME["bg_main"])
+        row_res.pack(fill=tk.X, pady=4)
+        create_label(row_res, "Разрешение окна (px):", style="normal",
+                     bg=THEME["bg_main"], width=22, anchor="w").pack(side=tk.LEFT)
+        self.cfg_bs_width = tk.Entry(row_res, bg=THEME["bg_input"], fg=THEME["accent_blue"],
+                                     font=THEME["font_normal"], relief=tk.FLAT, width=7,
+                                     insertbackground=THEME["accent_green"])
+        self.cfg_bs_width.insert(0, str(bs_cfg.get("window_width", 1280)))
+        self.cfg_bs_width.pack(side=tk.LEFT, padx=(8, 2))
+        create_label(row_res, "×", style="dim", bg=THEME["bg_main"]).pack(side=tk.LEFT)
+        self.cfg_bs_height = tk.Entry(row_res, bg=THEME["bg_input"], fg=THEME["accent_blue"],
+                                      font=THEME["font_normal"], relief=tk.FLAT, width=7,
+                                      insertbackground=THEME["accent_green"])
+        self.cfg_bs_height.insert(0, str(bs_cfg.get("window_height", 720)))
+        self.cfg_bs_height.pack(side=tk.LEFT, padx=(2, 8))
+        create_label(row_res, "Рекомендуется: 1280×720", style="dim",
+                     bg=THEME["bg_main"]).pack(side=tk.LEFT)
 
         create_separator(scroll).pack(fill=tk.X, pady=12)
 
@@ -931,7 +961,10 @@ class BotMainWindow:
             config.setdefault("technical_config", {}).setdefault("adb_settings", {})
             config["technical_config"]["adb_settings"]["timeout"] = float(self.cfg_timeout.get())
             config["technical_config"]["adb_settings"]["max_wait"] = int(self.cfg_max_wait.get())
-            config.setdefault("bluestacks", {})["path"] = self.cfg_bs_path.get()
+            bs = config.setdefault("bluestacks", {})
+            bs["path"]          = self.cfg_bs_path.get()
+            bs["window_width"]  = int(self.cfg_bs_width.get())
+            bs["window_height"] = int(self.cfg_bs_height.get())
             config.setdefault("bot_settings", {})["threshold"] = float(self.cfg_threshold.get())
             config["bot_settings"]["action_delay"] = float(self.cfg_action_delay.get())
 
@@ -1188,6 +1221,7 @@ class BotMainWindow:
 
     def _start_thread(self):
         import time
+        import json
         self._set_status("🔍 Проверяем BlueStacks...", "info")
 
         if not self.bluestacks.is_installed():
@@ -1218,6 +1252,11 @@ class BotMainWindow:
             return
 
         self._set_stat("ADB", f"✅ {serial}", "success")
+
+        # Фиксируем разрешение Android 1280x720 через ADB
+        self.bluestacks.set_fixed_resolution(serial, self._log_direct)
+        time.sleep(0.3)
+
         self._set_status("🎮 Запускаем Clash of Clans...", "info")
         self._set_stat("Игра", "⏳ Запуск...", "warning")
 
@@ -1234,6 +1273,56 @@ class BotMainWindow:
             self._set_stat("Игра", "❌ Ошибка", "error")
 
         self.root.after(0, lambda: self.start_btn.config(state=tk.NORMAL))
+
+    def _resize_bluestacks_window(self, width: int, height: int):
+        """Изменяет размер окна BlueStacks через win32api"""
+        try:
+            import ctypes
+            user32 = ctypes.windll.user32
+
+            # Ищем окно BlueStacks по заголовку
+            bs_titles = ["BlueStacks", "BlueStacks App Player", "HD-Player"]
+            hwnd = None
+            for title in bs_titles:
+                hwnd = user32.FindWindowW(None, title)
+                if hwnd:
+                    break
+
+            if not hwnd:
+                # Перебираем все окна с частичным совпадением
+                import ctypes.wintypes
+                found = []
+
+                @ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.wintypes.HWND, ctypes.wintypes.LPARAM)
+                def enum_cb(hwnd, lParam):
+                    length = user32.GetWindowTextLengthW(hwnd)
+                    if length > 0:
+                        buf = ctypes.create_unicode_buffer(length + 1)
+                        user32.GetWindowTextW(hwnd, buf, length + 1)
+                        if "BlueStacks" in buf.value or "HD-Player" in buf.value:
+                            found.append(hwnd)
+                    return True
+
+                user32.EnumWindows(enum_cb, 0)
+                hwnd = found[0] if found else None
+
+            if not hwnd:
+                self._set_status("⚠ Окно BlueStacks не найдено для изменения размера", "warning")
+                return
+
+            # Восстанавливаем окно если свёрнуто
+            SW_RESTORE = 9
+            user32.ShowWindow(hwnd, SW_RESTORE)
+
+            # Устанавливаем размер (SWP_NOMOVE = не двигать, только размер)
+            SWP_NOMOVE    = 0x0002
+            SWP_NOZORDER  = 0x0004
+            user32.SetWindowPos(hwnd, None, 0, 0, width, height,
+                                SWP_NOMOVE | SWP_NOZORDER)
+            self._set_status(f"✅ BlueStacks: {width}×{height}px", "success")
+
+        except Exception as e:
+            self._set_status(f"⚠ Resize: {e}", "warning")
 
     # ─────────────────────────────────────────────
     # ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ
