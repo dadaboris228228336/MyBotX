@@ -429,3 +429,8 @@ class ScenarioEditor(tk.Frame):
                        "retries": 3, "retry_delay": 2.0}
         })
         self._refresh_listbox()
+
+    def add_step_direct(self, step: dict):
+        """Добавляет готовый шаг напрямую (из диалога после вырезки паттерна)."""
+        self._steps.append(step)
+        self._refresh_listbox()

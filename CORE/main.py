@@ -546,11 +546,10 @@ class BotMainWindow:
         canvas.bind("<ButtonPress-1>",  on_press)
         canvas.bind("<B1-Motion>",      on_drag)
 
-        # ── Нижняя панель: имя + действие + кнопки ──
+        # ── Нижняя панель: только имя паттерна + кнопки ──
         bottom = tk.Frame(win, bg=THEME["bg_panel"], padx=12, pady=10)
         bottom.pack(fill=tk.X, padx=8, pady=6)
 
-        # Имя паттерна
         row1 = tk.Frame(bottom, bg=THEME["bg_panel"])
         row1.pack(fill=tk.X, pady=2)
         create_label(row1, "Имя паттерна:", style="dim", bg=THEME["bg_panel"]).pack(side=tk.LEFT)
@@ -560,21 +559,6 @@ class BotMainWindow:
                  font=THEME["font_normal"], relief=tk.FLAT,
                  insertbackground=THEME["accent_green"]).pack(side=tk.LEFT, padx=8)
 
-        # Действие после нахождения
-        row2 = tk.Frame(bottom, bg=THEME["bg_panel"])
-        row2.pack(fill=tk.X, pady=2)
-        create_label(row2, "Действие:", style="dim", bg=THEME["bg_panel"]).pack(side=tk.LEFT)
-        action_var = tk.StringVar(value=STEP_TYPES[0])
-        action_menu = tk.OptionMenu(row2, action_var, *STEP_TYPES)
-        action_menu.config(bg=THEME["bg_input"], fg=THEME["accent_blue"],
-                           font=THEME["font_small"], relief=tk.FLAT,
-                           activebackground=THEME["bg_card"],
-                           highlightthickness=0, width=28)
-        action_menu["menu"].config(bg=THEME["bg_input"], fg=THEME["accent_blue"],
-                                   font=THEME["font_small"])
-        action_menu.pack(side=tk.LEFT, padx=8)
-
-        # Кнопки
         btn_row = tk.Frame(bottom, bg=THEME["bg_panel"])
         btn_row.pack(fill=tk.X, pady=(8, 0))
 
@@ -605,20 +589,23 @@ class BotMainWindow:
             save_path = (Path(__file__).parent / "processes" / "BOT" / "patterns"
                          / f"{name}.png")
             cropped.save(save_path)
-
             self._bot_log(f"✅ Паттерн сохранён: {name}.png ({rx2-rx1}x{ry2-ry1}px)", "success")
-
-            # Добавляем шаг в сценарий с выбранным действием
-            if hasattr(self, "_scenario_editor"):
-                action_key = STEP_TYPE_KEYS.get(action_var.get(), "find_and_tap")
-                if action_key == "find_and_tap":
-                    self._scenario_editor.add_find_and_tap_step(name)
-                else:
-                    # Для других действий добавляем find_and_tap + выбранное действие
-                    self._scenario_editor.add_find_and_tap_step(name)
-                self._bot_log(f"➕ Шаг добавлен в сценарий: {action_var.get()}", "info")
-
             win.destroy()
+
+            # Открываем диалог параметров шага с уже подставленным паттерном
+            if hasattr(self, "_scenario_editor"):
+                from UI.scenario_editor import StepDialog
+                step_template = {
+                    "type": "find_and_tap",
+                    "params": {"pattern": name, "threshold": 0.8,
+                               "retries": 3, "retry_delay": 2.0}
+                }
+                dlg = StepDialog(self.root,
+                                 title=f"Настройка шага для паттерна '{name}'",
+                                 step=step_template)
+                if dlg.result:
+                    self._scenario_editor.add_step_direct(dlg.result)
+                    self._bot_log(f"➕ Шаг добавлен в сценарий: {name}", "info")
 
         create_button(btn_row, "💾 Сохранить и добавить в сценарий",
                       on_save, style="start", width=34).pack(side=tk.LEFT)
