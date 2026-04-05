@@ -614,3 +614,17 @@ class ScenarioEditor(tk.Frame):
         self._running = False
         self._run_btn.config(text="▶ Запустить", state=tk.NORMAL,
                              fg=THEME["btn_start_fg"])
+
+    def add_find_and_tap_step(self, pattern_name: str):
+        """Публичный метод — добавляет шаг find_and_tap из внешнего кода (crop window)."""
+        step = {
+            "type": "find_and_tap",
+            "params": {
+                "pattern":     pattern_name,
+                "threshold":   0.8,
+                "retries":     3,
+                "retry_delay": 2.0,
+            }
+        }
+        self._steps.append(step)
+        self._refresh_listbox()

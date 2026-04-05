@@ -104,13 +104,14 @@ class BotMainWindow:
             "main":     tk.Frame(self.tab_content, bg=THEME["bg_main"]),
             "check":    tk.Frame(self.tab_content, bg=THEME["bg_main"]),
             "bot":      tk.Frame(self.tab_content, bg=THEME["bg_main"]),
+            "auto":     tk.Frame(self.tab_content, bg=THEME["bg_main"]),
             "settings": tk.Frame(self.tab_content, bg=THEME["bg_main"]),
             "about":    tk.Frame(self.tab_content, bg=THEME["bg_main"]),
         }
 
         # Кнопки вкладок
         self.tab_buttons = {}
-        tabs = [("main", "🏠  ОСНОВНОЕ"), ("check", "🔍  ПРОВЕРКА"), ("bot", "🤖  БОТ"), ("settings", "⚙️  НАСТРОЙКИ"), ("about", "ℹ️  О ПРОГРАММЕ")]
+        tabs = [("main", "🏠  ОСНОВНОЕ"), ("check", "🔍  ПРОВЕРКА"), ("bot", "🤖  БОТ"), ("auto", "⚡  АВТО"), ("settings", "⚙️  НАСТРОЙКИ"), ("about", "ℹ️  О ПРОГРАММЕ")]
         for key, label in tabs:
             btn = tk.Button(
                 tab_bar,
@@ -136,6 +137,7 @@ class BotMainWindow:
         self._build_main_tab()
         self._build_check_tab()
         self._build_bot_tab()
+        self._build_auto_tab()
         self._build_settings_tab()
         self._build_about_tab()
 
@@ -414,27 +416,28 @@ class BotMainWindow:
         self.root.after(0, lambda: self._crop_window(name))
 
     def _crop_window(self, pattern_name: str):
-        """Окно с выбором области на скриншоте"""
+        """Окно с выбором области на скриншоте — сохраняет паттерн и добавляет в сценарий"""
         from PIL import ImageTk
-        import tkinter.messagebox as mb
 
         win = tk.Toplevel(self.root)
         win.title(f"Вырезать паттерн: {pattern_name}")
         win.configure(bg=THEME["bg_main"])
 
-        create_label(win, "Нарисуйте прямоугольник вокруг кнопки", style="dim", bg=THEME["bg_main"]).pack(pady=4)
+        create_label(win, "Нарисуйте прямоугольник мышью, отпустите — паттерн сохранится",
+                     style="dim", bg=THEME["bg_main"]).pack(pady=4)
 
         img = self._last_screenshot_img.copy()
-        img.thumbnail((800, 500))
+        img.thumbnail((900, 560))
         photo = ImageTk.PhotoImage(img)
 
-        canvas = tk.Canvas(win, width=img.width, height=img.height, bg=THEME["bg_main"], cursor="crosshair")
+        canvas = tk.Canvas(win, width=img.width, height=img.height,
+                           bg=THEME["bg_main"], cursor="crosshair")
         canvas.pack()
         canvas.create_image(0, 0, anchor="nw", image=photo)
         canvas.image = photo
 
         rect_id = [None]
-        start = [0, 0]
+        start   = [0, 0]
 
         def on_press(e):
             start[0], start[1] = e.x, e.y
@@ -452,26 +455,38 @@ class BotMainWindow:
         def on_release(e):
             x1, y1 = min(start[0], e.x), min(start[1], e.y)
             x2, y2 = max(start[0], e.x), max(start[1], e.y)
-
             if x2 - x1 < 5 or y2 - y1 < 5:
                 return
 
-            # Масштабируем координаты обратно к оригинальному скриншоту
-            orig = self._last_screenshot_img
-            scale_x = orig.width / img.width
+            # Масштабируем координаты к оригинальному скриншоту
+            orig    = self._last_screenshot_img
+            scale_x = orig.width  / img.width
             scale_y = orig.height / img.height
             rx1, ry1 = int(x1 * scale_x), int(y1 * scale_y)
             rx2, ry2 = int(x2 * scale_x), int(y2 * scale_y)
 
-            cropped = orig.crop((rx1, ry1, rx2, ry2))
-            save_path = Path(__file__).parent / "processes" / "BOT" / "patterns" / f"{pattern_name}.png"
+            cropped   = orig.crop((rx1, ry1, rx2, ry2))
+            save_path = (Path(__file__).parent / "processes" / "BOT" / "patterns"
+                         / f"{pattern_name}.png")
             cropped.save(save_path)
 
-            self._bot_log(f"✅ Паттерн сохранён: {pattern_name}.png ({rx2-rx1}x{ry2-ry1}px)", "success")
+            self._bot_log(
+                f"✅ Паттерн сохранён: {pattern_name}.png ({rx2-rx1}x{ry2-ry1}px)",
+                "success"
+            )
+
+            # Автоматически добавляем шаг в текущий сценарий
+            if hasattr(self, "_scenario_editor"):
+                self._scenario_editor.add_find_and_tap_step(pattern_name)
+                self._bot_log(
+                    f"➕ Шаг 'Найти {pattern_name} и нажать' добавлен в сценарий",
+                    "info"
+                )
+
             win.destroy()
 
-        canvas.bind("<ButtonPress-1>", on_press)
-        canvas.bind("<B1-Motion>", on_drag)
+        canvas.bind("<ButtonPress-1>",  on_press)
+        canvas.bind("<B1-Motion>",      on_drag)
         canvas.bind("<ButtonRelease-1>", on_release)
 
     def _bot_collect(self):
@@ -533,6 +548,140 @@ class BotMainWindow:
         except Exception:
             pass
         self.root.destroy()
+
+    # ─────────────────────────────────────────────
+    # ВКЛАДКА: АВТОМАТИЗАЦИЯ
+    # ─────────────────────────────────────────────
+
+    def _build_auto_tab(self):
+        frame = self.frames["auto"]
+
+        scroll = tk.Frame(frame, bg=THEME["bg_main"])
+        scroll.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+
+        create_label(scroll, "⚡ Автоматизация", style="header", bg=THEME["bg_main"]).pack(anchor="w", pady=(0, 6))
+        create_separator(scroll).pack(fill=tk.X, pady=(0, 14))
+
+        self._auto_vars = {}
+
+        def toggle_row(parent, key, title, description, extra_widget_fn=None):
+            """Строка с переключателем"""
+            row = tk.Frame(parent, bg=THEME["bg_card"], padx=12, pady=10)
+            row.pack(fill=tk.X, pady=4)
+
+            var = tk.BooleanVar(value=False)
+            self._auto_vars[key] = var
+
+            left = tk.Frame(row, bg=THEME["bg_card"])
+            left.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+            create_label(left, title, style="normal", bg=THEME["bg_card"]).pack(anchor="w")
+            create_label(left, description, style="dim", bg=THEME["bg_card"]).pack(anchor="w")
+
+            if extra_widget_fn:
+                extra_widget_fn(left, var)
+
+            # Переключатель
+            def toggle(v=var, r=row):
+                color = THEME["accent_green"] if v.get() else THEME["text_secondary"]
+                lbl.config(text="● ВКЛ" if v.get() else "○ ВЫКЛ", fg=color)
+
+            lbl = tk.Label(row, text="○ ВЫКЛ", fg=THEME["text_secondary"],
+                           bg=THEME["bg_card"], font=THEME["font_normal"],
+                           cursor="hand2")
+            lbl.pack(side=tk.RIGHT, padx=8)
+            lbl.bind("<Button-1>", lambda e, v=var: (v.set(not v.get()), toggle()))
+            var.trace_add("write", lambda *_: toggle())
+
+        # ── Переключатели ──────────────────────────────────────────────────
+
+        # 1. Свернуть BlueStacks
+        def bs_delay_widget(parent, var):
+            row2 = tk.Frame(parent, bg=THEME["bg_card"])
+            row2.pack(anchor="w", pady=(4, 0))
+            create_label(row2, "Через (сек):", style="dim", bg=THEME["bg_card"]).pack(side=tk.LEFT)
+            self._auto_bs_delay = tk.StringVar(value="10")
+            tk.Entry(row2, textvariable=self._auto_bs_delay, width=6,
+                     bg=THEME["bg_input"], fg=THEME["accent_blue"],
+                     font=THEME["font_small"], relief=tk.FLAT,
+                     insertbackground=THEME["accent_green"]).pack(side=tk.LEFT, padx=6)
+
+        toggle_row(scroll, "minimize_bs",
+                   "📱 Свернуть BlueStacks при запуске бота",
+                   "Автоматически сворачивает окно BlueStacks через N секунд после старта",
+                   bs_delay_widget)
+
+        # 2. Свернуть MyBotX
+        def bot_delay_widget(parent, var):
+            row2 = tk.Frame(parent, bg=THEME["bg_card"])
+            row2.pack(anchor="w", pady=(4, 0))
+            create_label(row2, "Через (сек):", style="dim", bg=THEME["bg_card"]).pack(side=tk.LEFT)
+            self._auto_bot_delay = tk.StringVar(value="15")
+            tk.Entry(row2, textvariable=self._auto_bot_delay, width=6,
+                     bg=THEME["bg_input"], fg=THEME["accent_blue"],
+                     font=THEME["font_small"], relief=tk.FLAT,
+                     insertbackground=THEME["accent_green"]).pack(side=tk.LEFT, padx=6)
+
+        toggle_row(scroll, "minimize_bot",
+                   "🤖 Свернуть MyBotX при запуске бота",
+                   "Сворачивает окно MyBotX через N секунд после старта сценария",
+                   bot_delay_widget)
+
+        # 3. Автозапуск сценария при старте
+        toggle_row(scroll, "autorun_scenario",
+                   "▶ Автозапуск сценария при нажатии СТАРТ",
+                   "Сразу запускает активный сценарий после подключения к BlueStacks")
+
+        # 4. Повтор сценария
+        def repeat_widget(parent, var):
+            row2 = tk.Frame(parent, bg=THEME["bg_card"])
+            row2.pack(anchor="w", pady=(4, 0))
+            create_label(row2, "Повторов (0 = бесконечно):", style="dim", bg=THEME["bg_card"]).pack(side=tk.LEFT)
+            self._auto_repeat_count = tk.StringVar(value="0")
+            tk.Entry(row2, textvariable=self._auto_repeat_count, width=6,
+                     bg=THEME["bg_input"], fg=THEME["accent_blue"],
+                     font=THEME["font_small"], relief=tk.FLAT,
+                     insertbackground=THEME["accent_green"]).pack(side=tk.LEFT, padx=6)
+
+        toggle_row(scroll, "repeat_scenario",
+                   "🔁 Повторять сценарий",
+                   "После завершения сценарий запускается снова",
+                   repeat_widget)
+
+        # 5. Пауза между повторами
+        def pause_widget(parent, var):
+            row2 = tk.Frame(parent, bg=THEME["bg_card"])
+            row2.pack(anchor="w", pady=(4, 0))
+            create_label(row2, "Пауза (сек):", style="dim", bg=THEME["bg_card"]).pack(side=tk.LEFT)
+            self._auto_repeat_pause = tk.StringVar(value="5")
+            tk.Entry(row2, textvariable=self._auto_repeat_pause, width=6,
+                     bg=THEME["bg_input"], fg=THEME["accent_blue"],
+                     font=THEME["font_small"], relief=tk.FLAT,
+                     insertbackground=THEME["accent_green"]).pack(side=tk.LEFT, padx=6)
+
+        toggle_row(scroll, "repeat_pause",
+                   "⏸ Пауза между повторами сценария",
+                   "Ждать N секунд перед следующим повтором",
+                   pause_widget)
+
+        # 6. Уведомление по завершении
+        toggle_row(scroll, "notify_done",
+                   "🔔 Уведомление по завершении сценария",
+                   "Показывает системное уведомление Windows когда сценарий завершён")
+
+        # 7. Логировать каждый шаг
+        toggle_row(scroll, "verbose_log",
+                   "📋 Подробный лог каждого шага",
+                   "Выводить детальную информацию о каждом действии в лог")
+
+        create_separator(scroll).pack(fill=tk.X, pady=12)
+        create_label(scroll, "💡 Предложения: скриншот по расписанию, стоп по паттерну, "
+                              "авто-рестарт при зависании BlueStacks",
+                     style="dim", bg=THEME["bg_main"]).pack(anchor="w")
+
+    def get_auto_settings(self) -> dict:
+        """Возвращает текущие настройки автоматизации"""
+        return {k: v.get() for k, v in self._auto_vars.items()}
 
     # ─────────────────────────────────────────────
     # ВКЛАДКА: НАСТРОЙКИ
