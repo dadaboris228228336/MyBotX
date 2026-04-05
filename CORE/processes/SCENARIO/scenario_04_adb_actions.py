@@ -48,16 +48,62 @@ def do_stop(device: str, package: str):
     _run(device, ["shell", "am", "force-stop", package])
 
 
-def do_pinch(device: str, zoom_in: bool, times: int):
-    cx, cy, offset = 540, 960, 200
+def do_pinch(device: str, zoom_in: bool, times: int, log=None):
+    """
+    Zoom in/out в BlueStacks.
+    Использует keyevent KEYCODE_ZOOM_OUT / KEYCODE_ZOOM_IN.
+    Если не работает — fallback на свайп от центра.
+    """
+    import subprocess, threading
+
+    # Метод 1: keyevent (работает в большинстве игр)
+    # KEYCODE_ZOOM_OUT = 168, KEYCODE_ZOOM_IN = 169
+    keycode = 169 if zoom_in else 168
+
     for _ in range(times):
-        if zoom_in:
-            do_swipe(device, cx - offset, cy, cx, cy, 300)
-            do_swipe(device, cx + offset, cy, cx, cy, 300)
-        else:
-            do_swipe(device, cx, cy, cx - offset, cy, 300)
-            do_swipe(device, cx, cy, cx + offset, cy, 300)
+        result = _run(device, ["shell", "input", "keyevent", str(keycode)])
         time.sleep(0.3)
+
+    if log:
+        direction = "🔍 zoom_in" if zoom_in else "🔭 zoom_out"
+        log(f"  {direction} x{times} (keyevent {keycode})", "dim")
+
+
+def do_pinch_swipe(device: str, zoom_in: bool, times: int, log=None):
+    """
+    Альтернативный pinch через два параллельных свайпа.
+    Запускает два adb процесса одновременно через threading.
+    """
+    import threading
+
+    cx, cy, offset = 540, 960, 250
+
+    def swipe1():
+        if zoom_in:
+            _run(device, ["shell", "input", "swipe",
+                          str(cx - offset), str(cy), str(cx - 50), str(cy), "400"])
+        else:
+            _run(device, ["shell", "input", "swipe",
+                          str(cx - 50), str(cy), str(cx - offset), str(cy), "400"])
+
+    def swipe2():
+        if zoom_in:
+            _run(device, ["shell", "input", "swipe",
+                          str(cx + offset), str(cy), str(cx + 50), str(cy), "400"])
+        else:
+            _run(device, ["shell", "input", "swipe",
+                          str(cx + 50), str(cy), str(cx + offset), str(cy), "400"])
+
+    for _ in range(times):
+        t1 = threading.Thread(target=swipe1)
+        t2 = threading.Thread(target=swipe2)
+        t1.start(); t2.start()
+        t1.join();  t2.join()
+        time.sleep(0.4)
+
+    if log:
+        direction = "🔍 pinch_in" if zoom_in else "🔭 pinch_out"
+        log(f"  {direction} x{times} (parallel swipe)", "dim")
 
 
 def do_find_and_tap(device: str, pattern: str, threshold: float,

@@ -9,7 +9,7 @@ import time
 from .scenario_02_steps import STEP_KEY_LABELS
 from .scenario_04_adb_actions import (
     do_tap, do_swipe, do_key, do_text,
-    do_launch, do_stop, do_pinch, do_find_and_tap
+    do_launch, do_stop, do_pinch, do_pinch_swipe, do_find_and_tap
 )
 
 
@@ -54,10 +54,11 @@ class ScenarioRunner:
                      int(p.get("duration", 300)))
             self.log(f"  👆 swipe", "dim")
         elif t == "pinch_out":
-            do_pinch(d, zoom_in=False, times=int(p.get("times", 1)))
+            # Пробуем keyevent, если не сработало — parallel swipe
+            do_pinch(d, zoom_in=False, times=int(p.get("times", 1)), log=self.log)
             self.log(f"  🔭 pinch_out x{p.get('times', 1)}", "dim")
         elif t == "pinch_in":
-            do_pinch(d, zoom_in=True, times=int(p.get("times", 1)))
+            do_pinch(d, zoom_in=True, times=int(p.get("times", 1)), log=self.log)
             self.log(f"  🔍 pinch_in x{p.get('times', 1)}", "dim")
         elif t == "key_home":
             do_key(d, 3)
