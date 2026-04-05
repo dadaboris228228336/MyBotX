@@ -93,37 +93,30 @@ echo ✅ BlueStacks найден
 
 REM ── Python пакеты ────────────────────────────────────────
 echo.
-echo 📦 Проверка Python пакетов (requirements.txt)...
+echo [*] Проверка Python пакетов (requirements.txt)...
 echo ────────────────────────────────────────
 
-python -c ^
-"import subprocess, sys; ^
-from pathlib import Path; ^
-req = Path(sys.argv[1]); ^
-lines = [l.strip() for l in req.read_text('utf-8').splitlines() if l.strip() and not l.startswith('#')]; ^
-missing = []; ^
-[missing.append(l.split('==')[0].split('>=')[0].strip()) or print('   ❌ ' + l.split('==')[0].strip() + ' — не установлен') if subprocess.run([sys.executable,'-m','pip','show',l.split('==')[0].split('>=')[0].strip()],capture_output=True).returncode != 0 else print('   ✅ ' + l.split('==')[0].strip()) for l in lines]; ^
-sys.exit(1 if missing else 0)" "%~dp0CORE\requirements.txt"
+python "%~dp0CORE\check_requirements.py"
 
 if errorlevel 1 (
     echo.
-    echo 📦 Устанавливаем недостающие пакеты...
+    echo [*] Устанавливаем недостающие пакеты...
     python -m pip install -r "%~dp0CORE\requirements.txt"
     if errorlevel 1 (
-        echo ❌ Ошибка установки!
+        echo [!] Ошибка установки!
         pause
         exit /b 1
     )
     REM Post-install для pywin32
     python -c "import win32gui" >nul 2>&1
     if errorlevel 1 (
-        echo 🔧 Настройка pywin32...
+        echo [*] Настройка pywin32...
         python -m pywin32_postinstall -install >nul 2>&1
     )
 )
 
 echo ────────────────────────────────────────
-echo ✅ Все пакеты готовы
+echo [OK] Все пакеты готовы
 
 REM ── Запуск ───────────────────────────────────────────────
 if not exist "%~dp0CORE\main.py" (
