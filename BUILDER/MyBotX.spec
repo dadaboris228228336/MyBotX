@@ -64,5 +64,5 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=str(ROOT / 'CORE' / 'mybotx.ico'),
-    version_file=str(ROOT / 'BUILD' / 'version_info.txt'),
+    version_file=str(ROOT / 'BUILDER' / 'version_info.txt'),
 )

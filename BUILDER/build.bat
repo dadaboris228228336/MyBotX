@@ -31,11 +31,16 @@ echo.
 echo [OK] Готово: BUILDER\dist\MyBotX.exe
 echo.
 
-if not exist "BUILDER\dist\CONFIG"   mkdir "BUILDER\dist\CONFIG"
-if not exist "BUILDER\dist\my_bot"   mkdir "BUILDER\dist\my_bot"
+if not exist "BUILDER\dist\CONFIG"              mkdir "BUILDER\dist\CONFIG"
+if not exist "BUILDER\dist\my_bot"             mkdir "BUILDER\dist\my_bot"
+if not exist "BUILDER\dist\BOT_APPLICATIONS"   mkdir "BUILDER\dist\BOT_APPLICATIONS"
+if not exist "BUILDER\dist\CORE\temp"          mkdir "BUILDER\dist\CORE\temp"
 
-xcopy /E /I /Y "CONFIG" "BUILDER\dist\CONFIG" >nul
-xcopy /E /I /Y "my_bot" "BUILDER\dist\my_bot" >nul
+xcopy /E /I /Y "CONFIG"                              "BUILDER\dist\CONFIG"                            >nul
+xcopy /E /I /Y "my_bot"                              "BUILDER\dist\my_bot"                            >nul
+xcopy /E /I /Y "BOT_APPLICATIONS\platform-tools"     "BUILDER\dist\BOT_APPLICATIONS\platform-tools"   >nul
 
 echo [OK] Папки скопированы
+echo.
+echo Запускай: BUILDER\dist\MyBotX.exe
 pause
