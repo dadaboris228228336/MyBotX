@@ -142,7 +142,7 @@ class StepDialog(tk.Toplevel):
             entry("X2:", "x2", 1000); entry("Y2:", "y2", 360)
             entry("Длительность (мс):", "duration", 300)
         elif t in ("pinch_out", "pinch_in"):
-            entry("Количество раз:", "times", 3)
+            entry("Секунд (сколько крутить колёсико):", "seconds", 2.0)
         elif t in ("launch_app", "stop_app"):
             entry("Package (com.xxx):", "package", "com.supercell.clashofclans")
         elif t == "input_text":

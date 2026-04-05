@@ -40,8 +40,8 @@ STEP_DEFAULTS = {
     "find_and_tap": {"pattern": "", "threshold": 0.8, "retries": 3, "retry_delay": 2.0},
     "tap_coords":   {"x": 640, "y": 360},
     "swipe":        {"x1": 200, "y1": 360, "x2": 1000, "y2": 360, "duration": 300},
-    "pinch_out":    {"times": 3},
-    "pinch_in":     {"times": 3},
+    "pinch_out":    {"seconds": 2.0},
+    "pinch_in":     {"seconds": 2.0},
     "key_home":     {},
     "key_back":     {},
     "input_text":   {"text": ""},
@@ -64,7 +64,7 @@ def step_label(step: dict) -> str:
     elif t == "swipe":
         return f"{label}: ({p.get('x1')},{p.get('y1')})→({p.get('x2')},{p.get('y2')})"
     elif t in ("pinch_out", "pinch_in"):
-        return f"{label} x{p.get('times', 1)}"
+        return f"{label} {p.get('seconds', 2.0)}с"
     elif t in ("launch_app", "stop_app"):
         pkg = p.get("package", "")
         return f"{label}: {pkg.split('.')[-1]}"

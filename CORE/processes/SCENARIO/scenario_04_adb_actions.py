@@ -48,17 +48,15 @@ def do_stop(device: str, package: str):
     _run(device, ["shell", "am", "force-stop", package])
 
 
-def do_pinch(device: str, zoom_in: bool, times: int, log=None):
+def do_pinch(device: str, zoom_in: bool, seconds: float = 2.0, log=None):
     """
     Zoom in/out в BlueStacks через Ctrl + колёсико мыши.
-    Ctrl+ScrollUp = zoom in, Ctrl+ScrollDown = zoom out.
-    Работает на уровне Windows (не ADB).
+    seconds — сколько секунд крутить колёсико.
     """
     try:
         import pyautogui
-        import win32con
-        import win32api
         import win32gui
+        import time as _time
 
         # Находим окно BlueStacks
         BS_TITLES = ["BlueStacks App Player", "BlueStacks", "HD-Player"]
@@ -72,32 +70,32 @@ def do_pinch(device: str, zoom_in: bool, times: int, log=None):
 
         if not hwnd:
             if log:
-                log("  ⚠ Окно BlueStacks не найдено для zoom", "warning")
+                log("  ⚠ Окно BlueStacks не найдено", "warning")
             return
 
-        # Получаем центр окна
+        # Центр окна BlueStacks
         rect = win32gui.GetWindowRect(hwnd)
         cx = (rect[0] + rect[2]) // 2
         cy = (rect[1] + rect[3]) // 2
 
-        # Зажимаем Ctrl и крутим колёсико
+        # Зажимаем Ctrl и крутим колёсико нужное количество секунд
+        scroll_dir = 3 if zoom_in else -3
+        interval   = 0.05  # каждые 50мс один тик
+        ticks      = int(seconds / interval)
+
         pyautogui.keyDown("ctrl")
-        for _ in range(times):
-            if zoom_in:
-                pyautogui.scroll(3, x=cx, y=cy)   # вперёд = zoom in
-            else:
-                pyautogui.scroll(-3, x=cx, y=cy)  # назад = zoom out
-            import time
-            time.sleep(0.3)
+        for _ in range(ticks):
+            pyautogui.scroll(scroll_dir, x=cx, y=cy)
+            _time.sleep(interval)
         pyautogui.keyUp("ctrl")
 
         if log:
             d = "🔍 zoom_in" if zoom_in else "🔭 zoom_out"
-            log(f"  {d} x{times} (Ctrl+scroll)", "dim")
+            log(f"  {d} {seconds}с (Ctrl+scroll)", "dim")
 
     except ImportError as e:
         if log:
-            log(f"  ❌ Нужен pyautogui/pywin32: {e}", "error")
+            log(f"  ❌ Нужен pyautogui/pywin32: pip install pyautogui pywin32", "error")
     except Exception as e:
         if log:
             log(f"  ❌ Ошибка zoom: {e}", "error")
