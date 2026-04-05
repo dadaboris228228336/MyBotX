@@ -7,7 +7,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).parent.parent
 MAIN_BAT = ROOT / "MyBotX_1.0.bat"
-COMPAT_LAUNCHER = ROOT / "MyBotX_1.0_launcher.bat"
 
 
 @pytest.fixture(scope="module")
@@ -65,10 +64,3 @@ def test_cd_project_root_for_double_click(bat_content):
 def test_title_not_launcher_word(bat_content):
     assert "Launcher" not in bat_content
     assert "title MyBotX 1.0" in bat_content
-
-
-def test_compat_launcher_forwards_to_main_bat():
-    assert COMPAT_LAUNCHER.exists()
-    text = COMPAT_LAUNCHER.read_text(encoding="utf-8")
-    assert "MyBotX_1.0.bat" in text
-    assert "call " in text.lower()

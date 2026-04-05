@@ -5,7 +5,7 @@ alwaysApply: true
 
 # MyBotX Core Rules
 
-- Keep launcher flow aligned with `MyBotX_1.0.bat` (и `MyBotX_1.0_launcher.bat` как совместимость) и `CORE/main.py`.
+- Keep launcher flow aligned with `MyBotX_1.0.bat` and `CORE/main.py`.
 - Do not add Linux-first runtime paths for production flow; primary target is Windows 10/11.
 - Any path/config changes must keep `CONFIG/config.json` backward-compatible.
 - Do not commit cache/log artifacts (`.pytest_cache`, `TESTS/logs`, temp files).
