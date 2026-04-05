@@ -286,6 +286,8 @@ class ScenarioEditor(tk.Frame):
         create_button(step_btns, "🗑",  self._delete_step, width=4).pack(side=tk.LEFT, padx=1)
         # Двойной клик тоже открывает редактор
         self._listbox.bind("<Double-Button-1>", lambda e: self._edit_step())
+        # Одиночный клик — заполняем форму параметрами выбранного шага
+        self._listbox.bind("<<ListboxSelect>>", lambda e: self._on_step_select())
 
         # Форма добавления шага (правая часть)
         form_outer = tk.Frame(middle, bg=THEME["bg_panel"], width=260)
@@ -510,6 +512,31 @@ class ScenarioEditor(tk.Frame):
         removed = self._steps.pop(i)
         self._refresh_listbox()
         self.log(f"🗑 Удалён шаг: {self._step_label(removed)}", "dim")
+
+    def _on_step_select(self):
+        """При выборе шага в listbox — заполняем форму его параметрами."""
+        i = self._selected_index()
+        if i is None or i >= len(self._steps):
+            return
+        step   = self._steps[i]
+        t_key  = step["type"]
+        t_label = STEP_KEY_LABELS.get(t_key, t_key)
+        p      = step.get("params", {})
+
+        # Меняем тип — это перестроит форму через trace
+        self._step_type_var.set(t_label)
+
+        # После перестройки формы заполняем значения
+        self.after(80, lambda: self._fill_form_from_params(p))
+
+    def _fill_form_from_params(self, p: dict):
+        """Заполняет поля формы значениями из параметров шага."""
+        for key, var in self._form_widgets.items():
+            if key in p:
+                try:
+                    var.set(str(p[key]))
+                except Exception:
+                    pass
 
     def _edit_step(self):
         """Открывает окно редактирования выбранного шага"""
