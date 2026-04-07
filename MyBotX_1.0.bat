@@ -117,7 +117,6 @@ for /f "delims=" %%p in ('where adb 2^>nul') do (
     )
 )
 echo  [X] ADB - NOT FOUND
-set "MISSING=1"
 set "MISS_ADB=1"
 :adb_done
 
