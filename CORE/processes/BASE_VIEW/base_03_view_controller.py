@@ -117,21 +117,21 @@ class ViewController:
     # ------------------------------------------------------------------
 
     def zoom_in(self) -> bool:
-        """Приближение через Ctrl + scroll вверх."""
+        """Приближение через параллельный pinch (две точки одновременно)."""
         try:
-            from processes.SCENARIO.scenario_04_adb_actions import do_pinch
-            do_pinch(self.device, zoom_in=True, seconds=1.0, log=self.log)
+            from processes.SCENARIO.scenario_04_adb_actions import do_pinch_swipe
+            do_pinch_swipe(self.device, zoom_in=True, times=1, log=self.log)
             self.log("🔍 Приближение выполнено")
             return True
         except Exception as e:
-            self.log(f"❌ Ошибка приближения: {e}", )
+            self.log(f"❌ Ошибка приближения: {e}")
             return False
 
     def zoom_out(self) -> bool:
-        """Отдаление через Ctrl + scroll вниз."""
+        """Отдаление через параллельный pinch (две точки одновременно)."""
         try:
-            from processes.SCENARIO.scenario_04_adb_actions import do_pinch
-            do_pinch(self.device, zoom_in=False, seconds=1.0, log=self.log)
+            from processes.SCENARIO.scenario_04_adb_actions import do_pinch_swipe
+            do_pinch_swipe(self.device, zoom_in=False, times=1, log=self.log)
             self.log("🔎 Отдаление выполнено")
             return True
         except Exception as e:
@@ -139,11 +139,11 @@ class ViewController:
             return False
 
     def zoom_max_out(self) -> bool:
-        """Максимальное отдаление."""
+        """Максимальное отдаление — несколько pinch подряд."""
         self.log(f"🔎 Максимальное отдаление ({self._max_out_steps} шагов)...")
         try:
-            from processes.SCENARIO.scenario_04_adb_actions import do_pinch
-            do_pinch(self.device, zoom_in=False, seconds=self._max_out_steps * 0.8, log=self.log)
+            from processes.SCENARIO.scenario_04_adb_actions import do_pinch_swipe
+            do_pinch_swipe(self.device, zoom_in=False, times=self._max_out_steps, log=self.log)
             return True
         except Exception as e:
             self.log(f"❌ Ошибка отдаления: {e}")
