@@ -117,61 +117,37 @@ class ViewController:
     # ------------------------------------------------------------------
 
     def zoom_in(self) -> bool:
-        """
-        Pinch-out жест (приближение).
-
-        Выполняет два параллельных swipe от центра наружу.
-
-        Returns:
-            True если ADB-команда выполнена успешно.
-        """
-        cx, cy = self.screen_w // 2, self.screen_h // 2
-        p1, p2 = compute_pinch_coords(cx, cy, self._pinch_step_px)
-        # pinch-out: точки расходятся от центра
-        result = self._run_pinch(
-            x1_start=cx, y1_start=cy, x1_end=p1[0], y1_end=p1[1],
-            x2_start=cx, y2_start=cy, x2_end=p2[0], y2_end=p2[1],
-        )
-        if result:
+        """Приближение через Ctrl + scroll вверх."""
+        try:
+            from processes.SCENARIO.scenario_04_adb_actions import do_pinch
+            do_pinch(self.device, zoom_in=True, seconds=1.0, log=self.log)
             self.log("🔍 Приближение выполнено")
-        return result
+            return True
+        except Exception as e:
+            self.log(f"❌ Ошибка приближения: {e}", )
+            return False
 
     def zoom_out(self) -> bool:
-        """
-        Pinch-in жест (отдаление).
-
-        Выполняет два параллельных swipe от краёв к центру.
-
-        Returns:
-            True если ADB-команда выполнена успешно.
-        """
-        cx, cy = self.screen_w // 2, self.screen_h // 2
-        p1, p2 = compute_pinch_coords(cx, cy, self._pinch_step_px)
-        # pinch-in: точки сходятся к центру
-        result = self._run_pinch(
-            x1_start=p1[0], y1_start=p1[1], x1_end=cx, y1_end=cy,
-            x2_start=p2[0], y2_start=p2[1], x2_end=cx, y2_end=cy,
-        )
-        if result:
+        """Отдаление через Ctrl + scroll вниз."""
+        try:
+            from processes.SCENARIO.scenario_04_adb_actions import do_pinch
+            do_pinch(self.device, zoom_in=False, seconds=1.0, log=self.log)
             self.log("🔎 Отдаление выполнено")
-        return result
+            return True
+        except Exception as e:
+            self.log(f"❌ Ошибка отдаления: {e}")
+            return False
 
     def zoom_max_out(self) -> bool:
-        """
-        Максимальное отдаление (несколько pinch-in подряд).
-
-        Returns:
-            True если все шаги выполнены без ошибок.
-        """
+        """Максимальное отдаление."""
         self.log(f"🔎 Максимальное отдаление ({self._max_out_steps} шагов)...")
-        success = True
-        for i in range(self._max_out_steps):
-            ok = self.zoom_out()
-            if not ok:
-                self.log(f"⚠ Шаг отдаления {i + 1} завершился с ошибкой")
-                success = False
-            time.sleep(0.3)
-        return success
+        try:
+            from processes.SCENARIO.scenario_04_adb_actions import do_pinch
+            do_pinch(self.device, zoom_in=False, seconds=self._max_out_steps * 0.8, log=self.log)
+            return True
+        except Exception as e:
+            self.log(f"❌ Ошибка отдаления: {e}")
+            return False
 
     # ------------------------------------------------------------------
     # Публичный API — центрирование
@@ -275,9 +251,9 @@ class ViewController:
             return False
         is_main, screen_type, confidence = screen_detector.detect_screen_type(frame)
         if not is_main:
-            self.log(f"⚠ Не главный экран: тип='{screen_type}', confidence={confidence:.2f}")
-            return False
-        self.log(f"✅ Главный экран подтверждён (confidence={confidence:.2f})")
+            self.log(f"⚠ Возможно не главный экран (тип='{screen_type}', confidence={confidence:.2f}), продолжаем...")
+        else:
+            self.log(f"✅ Главный экран подтверждён (confidence={confidence:.2f})")
 
         # Шаг 4: обнаружение сетки
         self.log("🔍 Шаг 4: обнаружение сетки базы...")
