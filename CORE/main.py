@@ -1188,76 +1188,173 @@ class BotMainWindow:
     # ─────────────────────────────────────────────
 
     def _build_dev_tab(self):
-        """Строит вкладку DEV с редактором Base_Constants."""
+        """Строит вкладку DEV — структурированный редактор параметров бота."""
         import json
         frame = self.frames["dev"]
 
-        scroll = tk.Frame(frame, bg=THEME["bg_main"])
-        scroll.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+        # Скроллируемый контейнер
+        canvas = tk.Canvas(frame, bg=THEME["bg_main"], highlightthickness=0)
+        scrollbar = tk.Scrollbar(frame, orient="vertical", command=canvas.yview)
+        scroll = tk.Frame(canvas, bg=THEME["bg_main"])
+        scroll.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=scroll, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        canvas.bind_all("<MouseWheel>", lambda e: canvas.yview_scroll(int(-1*(e.delta/120)), "units"))
 
-        create_label(scroll, "⚙️ Dev Mode — Константы базы", style="header", bg=THEME["bg_main"]).pack(anchor="w", pady=(0, 6))
-        create_label(scroll, "Редактирование base_constants.json. Изменения применяются немедленно.", style="dim", bg=THEME["bg_main"]).pack(anchor="w", pady=(0, 10))
-        create_separator(scroll).pack(fill=tk.X, pady=(0, 14))
+        pad = dict(padx=20, pady=4)
+
+        def section(title, desc=None):
+            tk.Frame(scroll, bg=THEME["accent_blue"], height=2).pack(fill=tk.X, **pad)
+            create_label(scroll, title, style="header", bg=THEME["bg_main"]).pack(anchor="w", padx=20, pady=(8,2))
+            if desc:
+                create_label(scroll, desc, style="dim", bg=THEME["bg_main"]).pack(anchor="w", padx=20, pady=(0,6))
 
         self._dev_entries = {}
 
-        def _make_entry_row(parent, label_text, key_path, default_val):
-            """key_path — кортеж ('section', 'field')"""
+        def entry_row(parent, label, key_path, default):
             row = tk.Frame(parent, bg=THEME["bg_main"])
-            row.pack(fill=tk.X, pady=3)
-            create_label(row, label_text, style="normal", bg=THEME["bg_main"], width=30, anchor="w").pack(side=tk.LEFT)
-            var = tk.StringVar(value=str(default_val))
-            entry = tk.Entry(
-                row, textvariable=var,
-                bg=THEME["bg_input"], fg=THEME["accent_blue"],
-                font=THEME["font_normal"], relief=tk.FLAT, width=10,
-                insertbackground=THEME["accent_green"],
-            )
-            entry.pack(side=tk.LEFT, padx=8)
+            row.pack(fill=tk.X, pady=2, padx=20)
+            create_label(row, label, style="normal", bg=THEME["bg_main"], width=30, anchor="w").pack(side=tk.LEFT)
+            var = tk.StringVar(value=str(default))
+            tk.Entry(row, textvariable=var, bg=THEME["bg_input"], fg=THEME["accent_blue"],
+                     font=THEME["font_normal"], relief=tk.FLAT, width=10,
+                     insertbackground=THEME["accent_green"]).pack(side=tk.LEFT, padx=8)
             self._dev_entries[key_path] = var
             return var
 
-        # ── Размер базы ──
-        create_label(scroll, "📐 Размер базы (сетка)", style="dim", bg=THEME["bg_main"]).pack(anchor="w", pady=(0, 4))
-        _make_entry_row(scroll, "Ширина сетки (клетки):", ("base", "grid_width_cells"), 44)
-        _make_entry_row(scroll, "Высота сетки (клетки):", ("base", "grid_height_cells"), 44)
-        _make_entry_row(scroll, "Угол правых диагоналей (°):", ("base", "isometric_angle_right"), 27.0)
-        _make_entry_row(scroll, "Угол левых диагоналей (°):", ("base", "isometric_angle_left"), 153.0)
-        _make_entry_row(scroll, "Допуск угла (°):", ("base", "angle_tolerance"), 3.0)
+        create_label(scroll, "⚙️ Dev Mode", style="title", bg=THEME["bg_main"]).pack(anchor="w", padx=20, pady=(10,2))
+        create_label(scroll, "Технические параметры бота. Изменения применяются после сохранения.", style="dim", bg=THEME["bg_main"]).pack(anchor="w", padx=20, pady=(0,10))
 
-        create_separator(scroll).pack(fill=tk.X, pady=10)
+        # ══════════════════════════════════════════
+        # 1. СЕТКА БАЗЫ
+        # ══════════════════════════════════════════
+        section("📐 1. Сетка базы", "Параметры изометрической сетки CoC (44×44 клетки)")
+        entry_row(scroll, "Ширина сетки (клетки):", ("base", "grid_width_cells"), 44)
+        entry_row(scroll, "Высота сетки (клетки):", ("base", "grid_height_cells"), 44)
+        entry_row(scroll, "Угол правых диагоналей (°):", ("base", "isometric_angle_right"), 27.0)
+        entry_row(scroll, "Угол левых диагоналей (°):", ("base", "isometric_angle_left"), 153.0)
+        entry_row(scroll, "Допуск угла (°):", ("base", "angle_tolerance"), 3.0)
 
-        # ── Зум ──
-        create_label(scroll, "🔍 Зум", style="dim", bg=THEME["bg_main"]).pack(anchor="w", pady=(0, 4))
-        _make_entry_row(scroll, "Шаг pinch (px):", ("zoom", "pinch_step_px"), 150)
-        _make_entry_row(scroll, "Длительность pinch (мс):", ("zoom", "pinch_duration_ms"), 400)
-        _make_entry_row(scroll, "Макс. шагов отдаления:", ("zoom", "max_out_steps"), 5)
+        # ══════════════════════════════════════════
+        # 2. ЗУМ
+        # ══════════════════════════════════════════
+        section("🔍 2. Зум", "Параметры pinch-жестов для приближения/отдаления")
+        entry_row(scroll, "Шаг pinch (px):", ("zoom", "pinch_step_px"), 150)
+        entry_row(scroll, "Длительность pinch (мс):", ("zoom", "pinch_duration_ms"), 600)
+        entry_row(scroll, "Макс. шагов отдаления:", ("zoom", "max_out_steps"), 5)
 
-        create_separator(scroll).pack(fill=tk.X, pady=10)
+        # ══════════════════════════════════════════
+        # 3. ЦЕНТРИРОВАНИЕ
+        # ══════════════════════════════════════════
+        section("🎯 3. Центрирование", "Параметры алгоритма центрирования базы")
+        entry_row(scroll, "Допуск центра (px):", ("centering", "center_tolerance_px"), 20)
+        entry_row(scroll, "Отступ от края (px):", ("centering", "edge_margin_px"), 20)
+        entry_row(scroll, "Макс. попыток коррекции:", ("centering", "max_correction_attempts"), 3)
 
-        # ── Постройки ──
-        create_label(scroll, "🏗 Размеры построек (клетки)", style="dim", bg=THEME["bg_main"]).pack(anchor="w", pady=(0, 4))
+        # ══════════════════════════════════════════
+        # 4. ПОСЛЕДОВАТЕЛЬНОСТЬ ЗАПУСКА
+        # ══════════════════════════════════════════
+        section("🚀 4. Последовательность запуска",
+                "Шаги выполняемые после нажатия СТАРТ. Бот ищет паттерн и выполняет действие.")
+
+        create_label(scroll, "Ожидание после запуска игры (сек):", style="normal", bg=THEME["bg_main"]).pack(anchor="w", padx=20, pady=(0,2))
+        self._dev_startup_wait = tk.StringVar(value="15")
+        tk.Entry(scroll, textvariable=self._dev_startup_wait, bg=THEME["bg_input"],
+                 fg=THEME["accent_blue"], font=THEME["font_normal"], relief=tk.FLAT, width=6,
+                 insertbackground=THEME["accent_green"]).pack(anchor="w", padx=20, pady=(0,8))
+
+        # Список шагов запуска
+        create_label(scroll, "Шаги (паттерн → действие):", style="dim", bg=THEME["bg_main"]).pack(anchor="w", padx=20, pady=(0,4))
+        create_label(scroll, "Бот ищет паттерн каждые 5 сек. Если найден — выполняет действие.", style="dim", bg=THEME["bg_main"]).pack(anchor="w", padx=20, pady=(0,6))
+
+        steps_frame = tk.Frame(scroll, bg=THEME["bg_card"], padx=10, pady=8)
+        steps_frame.pack(fill=tk.X, padx=20, pady=(0,8))
+
+        self._dev_startup_steps = []  # список (pattern_var, action_var)
+
+        ACTIONS = ["tap", "zoom_out", "zoom_in", "center_base", "wait_5s", "skip"]
+        ACTION_LABELS = {
+            "tap":         "Нажать на паттерн",
+            "zoom_out":    "Отдалить",
+            "zoom_in":     "Приблизить",
+            "center_base": "Центрировать базу",
+            "wait_5s":     "Подождать 5 сек",
+            "skip":        "Пропустить",
+        }
+
+        def _get_patterns():
+            patterns_dir = Path(__file__).parent / "processes" / "BOT" / "patterns"
+            return ["(нет)"] + [f.stem for f in sorted(patterns_dir.glob("*.png"))]
+
+        def _add_step(pattern="(нет)", action="tap"):
+            row = tk.Frame(steps_frame, bg=THEME["bg_card"])
+            row.pack(fill=tk.X, pady=2)
+
+            idx = len(self._dev_startup_steps) + 1
+            create_label(row, f"{idx}.", style="dim", bg=THEME["bg_card"], width=3).pack(side=tk.LEFT)
+
+            pat_var = tk.StringVar(value=pattern)
+            pat_menu = tk.OptionMenu(row, pat_var, *_get_patterns())
+            pat_menu.config(bg=THEME["bg_input"], fg=THEME["accent_blue"],
+                            font=THEME["font_normal"], relief=tk.FLAT, width=16,
+                            activebackground=THEME["bg_card"])
+            pat_menu.pack(side=tk.LEFT, padx=(0,6))
+
+            act_var = tk.StringVar(value=action)
+            act_menu = tk.OptionMenu(row, act_var, *ACTIONS)
+            act_menu.config(bg=THEME["bg_input"], fg=THEME["accent_green"],
+                            font=THEME["font_normal"], relief=tk.FLAT, width=18,
+                            activebackground=THEME["bg_card"])
+            act_menu.pack(side=tk.LEFT, padx=(0,6))
+
+            def _remove():
+                row.destroy()
+                self._dev_startup_steps.remove((pat_var, act_var))
+            tk.Button(row, text="✕", command=_remove, bg=THEME["bg_card"],
+                      fg=THEME["accent_red"], font=THEME["font_normal"],
+                      relief=tk.FLAT, cursor="hand2").pack(side=tk.LEFT)
+
+            self._dev_startup_steps.append((pat_var, act_var))
+
+        btn_add_row = tk.Frame(steps_frame, bg=THEME["bg_card"])
+        btn_add_row.pack(fill=tk.X, pady=(6,0))
+        create_button(btn_add_row, "+ Добавить шаг", _add_step, width=18).pack(side=tk.LEFT)
+
+        # Загружаем сохранённые шаги
+        try:
+            saved = json.loads(
+                (Path(__file__).parent.parent / "CONFIG" / "base_constants.json")
+                .read_text(encoding="utf-8")
+            ).get("startup_steps", [])
+            for s in saved:
+                _add_step(s.get("pattern", "(нет)"), s.get("action", "tap"))
+        except Exception:
+            pass
+
+        if not self._dev_startup_steps:
+            _add_step("(нет)", "zoom_out")
+            _add_step("(нет)", "center_base")
+
+        # ══════════════════════════════════════════
+        # 5. ПОСТРОЙКИ
+        # ══════════════════════════════════════════
+        section("🏗 5. Размеры построек", "Размер каждой постройки в клетках сетки")
 
         buildings_frame = tk.Frame(scroll, bg=THEME["bg_main"])
-        buildings_frame.pack(fill=tk.X)
-
-        building_defaults = [
-            ("town_hall",         "Town Hall",         4, 4),
-            ("cannon",            "Cannon",            3, 3),
-            ("archer_tower",      "Archer Tower",      3, 3),
-            ("mortar",            "Mortar",            3, 3),
-            ("tesla",             "Tesla",             2, 2),
-            ("wall",              "Wall",              1, 1),
-            ("gold_mine",         "Gold Mine",         3, 3),
-            ("elixir_collector",  "Elixir Collector",  3, 3),
-        ]
-
-        # Два столбца
+        buildings_frame.pack(fill=tk.X, padx=20)
         col_left  = tk.Frame(buildings_frame, bg=THEME["bg_main"])
         col_right = tk.Frame(buildings_frame, bg=THEME["bg_main"])
         col_left.pack(side=tk.LEFT, fill=tk.X, expand=True)
         col_right.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
+        building_defaults = [
+            ("town_hall", "Town Hall", 4, 4), ("cannon", "Cannon", 3, 3),
+            ("archer_tower", "Archer Tower", 3, 3), ("mortar", "Mortar", 3, 3),
+            ("tesla", "Tesla", 2, 2), ("wall", "Wall", 1, 1),
+            ("gold_mine", "Gold Mine", 3, 3), ("elixir_collector", "Elixir Collector", 3, 3),
+        ]
         for i, (bkey, bname, dw, dh) in enumerate(building_defaults):
             parent_col = col_left if i % 2 == 0 else col_right
             grp = tk.Frame(parent_col, bg=THEME["bg_main"])
@@ -1267,7 +1364,7 @@ class BotMainWindow:
             var_w = tk.StringVar(value=str(dw))
             tk.Entry(grp, textvariable=var_w, bg=THEME["bg_input"], fg=THEME["accent_blue"],
                      font=THEME["font_normal"], relief=tk.FLAT, width=4,
-                     insertbackground=THEME["accent_green"]).pack(side=tk.LEFT, padx=(2, 6))
+                     insertbackground=THEME["accent_green"]).pack(side=tk.LEFT, padx=(2,6))
             create_label(grp, "H:", style="dim", bg=THEME["bg_main"]).pack(side=tk.LEFT)
             var_h = tk.StringVar(value=str(dh))
             tk.Entry(grp, textvariable=var_h, bg=THEME["bg_input"], fg=THEME["accent_blue"],
@@ -1276,54 +1373,19 @@ class BotMainWindow:
             self._dev_entries[("buildings", bkey, "w")] = var_w
             self._dev_entries[("buildings", bkey, "h")] = var_h
 
-        create_separator(scroll).pack(fill=tk.X, pady=12)
-
-        # ── Паттерн главного экрана ──
-        create_label(scroll, "🎯 Паттерн главного экрана", style="dim", bg=THEME["bg_main"]).pack(anchor="w", pady=(0, 4))
-        create_label(scroll, "Паттерн используется для определения что игра загрузила главный экран.", style="dim", bg=THEME["bg_main"]).pack(anchor="w", pady=(0, 6))
-
-        pattern_row = tk.Frame(scroll, bg=THEME["bg_main"])
-        pattern_row.pack(fill=tk.X, pady=2)
-
-        create_label(pattern_row, "Паттерн:", style="normal", bg=THEME["bg_main"]).pack(side=tk.LEFT)
-
-        self._dev_main_screen_pattern = tk.StringVar(value="")
-        self._dev_pattern_combo = tk.OptionMenu(pattern_row, self._dev_main_screen_pattern, "")
-        self._dev_pattern_combo.config(
-            bg=THEME["bg_input"], fg=THEME["accent_blue"],
-            font=THEME["font_normal"], relief=tk.FLAT,
-            activebackground=THEME["bg_card"],
-        )
-        self._dev_pattern_combo.pack(side=tk.LEFT, padx=8)
-
-        def _refresh_patterns():
-            patterns_dir = Path(__file__).parent / "processes" / "BOT" / "patterns"
-            files = [f.stem for f in patterns_dir.glob("*.png")]
-            menu = self._dev_pattern_combo["menu"]
-            menu.delete(0, "end")
-            for f in files:
-                menu.add_command(label=f, command=lambda v=f: self._dev_main_screen_pattern.set(v))
-            if files and not self._dev_main_screen_pattern.get():
-                self._dev_main_screen_pattern.set(files[0])
-
-        create_button(pattern_row, "🔄", _refresh_patterns, width=4).pack(side=tk.LEFT)
-        _refresh_patterns()
-
-        create_separator(scroll).pack(fill=tk.X, pady=12)
-
-        # ── Кнопки ──
+        # ══════════════════════════════════════════
+        # КНОПКИ
+        # ══════════════════════════════════════════
+        tk.Frame(scroll, bg=THEME["accent_blue"], height=2).pack(fill=tk.X, padx=20, pady=12)
         btn_row = tk.Frame(scroll, bg=THEME["bg_main"])
-        btn_row.pack(anchor="w")
-
-        create_button(btn_row, "💾  Сохранить",
-                      command=self._dev_save, style="start", width=18).pack(side=tk.LEFT, padx=(0, 10))
-        create_button(btn_row, "🔄  Сбросить",
-                      command=self._dev_load_values, width=16).pack(side=tk.LEFT)
-
+        btn_row.pack(anchor="w", padx=20, pady=(0,10))
+        create_button(btn_row, "💾  Сохранить", command=self._dev_save,
+                      style="start", width=18).pack(side=tk.LEFT, padx=(0,10))
+        create_button(btn_row, "🔄  Сбросить", command=self._dev_load_values,
+                      width=16).pack(side=tk.LEFT)
         self._dev_status = create_label(scroll, "", style="dim", bg=THEME["bg_main"])
-        self._dev_status.pack(anchor="w", pady=6)
+        self._dev_status.pack(anchor="w", padx=20, pady=(0,20))
 
-        # Загружаем актуальные значения при построении
         self._dev_load_values()
 
     def _dev_load_values(self):
@@ -1355,6 +1417,37 @@ class BotMainWindow:
         """Сохраняет значения из полей DEV в base_constants.json и применяет немедленно."""
         import json
         constants_path = Path(__file__).parent.parent / "CONFIG" / "base_constants.json"
+        try:
+            try:
+                with open(constants_path, encoding="utf-8") as f:
+                    data = json.load(f)
+            except Exception:
+                data = {}
+
+            for key_path, var in self._dev_entries.items():
+                raw = var.get().strip()
+                if len(key_path) == 2:
+                    section, field = key_path
+                    data.setdefault(section, {})[field] = _parse_number(raw)
+                else:
+                    _, bkey, dim = key_path
+                    data.setdefault("buildings", {}).setdefault(bkey, {})[dim] = _parse_number(raw)
+
+            # Сохраняем шаги запуска
+            if hasattr(self, "_dev_startup_steps"):
+                data["startup_steps"] = [
+                    {"pattern": p.get(), "action": a.get()}
+                    for p, a in self._dev_startup_steps
+                ]
+            if hasattr(self, "_dev_startup_wait"):
+                data["startup_wait"] = _parse_number(self._dev_startup_wait.get())
+
+            with open(constants_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=4, ensure_ascii=False)
+
+            self._dev_status.config(text="✅ Сохранено!", fg=THEME["accent_green"])
+        except Exception as e:
+            self._dev_status.config(text=f"❌ Ошибка: {e}", fg=THEME["accent_red"])
         try:
             # Читаем текущий файл как основу
             try:
@@ -1699,73 +1792,91 @@ class BotMainWindow:
         self.root.after(0, lambda: self.start_btn.config(state=tk.NORMAL))
 
     def _wait_and_center(self):
-        """Ждёт загрузки главного экрана CoC и центрирует базу."""
+        """Выполняет последовательность запуска из DEV настроек."""
         import time
-        import io
-        import numpy as np
+        import json
 
-        self._set_status("⏳ Ждём загрузки игры (15 сек)...", "info")
-        time.sleep(15)
+        # Загружаем параметры из base_constants.json
+        constants_path = Path(__file__).parent.parent / "CONFIG" / "base_constants.json"
+        try:
+            with open(constants_path, encoding="utf-8") as f:
+                cfg = json.load(f)
+        except Exception:
+            cfg = {}
+
+        wait_secs = int(cfg.get("startup_wait", 15))
+        steps = cfg.get("startup_steps", [
+            {"pattern": "(нет)", "action": "zoom_out"},
+            {"pattern": "(нет)", "action": "center_base"},
+        ])
+
+        self._set_status(f"⏳ Ждём загрузки игры ({wait_secs} сек)...", "info")
+        time.sleep(wait_secs)
 
         if not self.adb.connected_device:
             return
 
-        # Получаем паттерн главного экрана из DEV настроек
-        pattern_name = getattr(self, "_dev_main_screen_pattern", None)
-        pattern_name = pattern_name.get() if pattern_name else ""
-
-        patterns_dir = Path(__file__).parent / "processes" / "BOT" / "patterns"
-        pattern_path = patterns_dir / f"{pattern_name}.png" if pattern_name else None
-
-        self._set_status("🔍 Ищем главный экран...", "info")
-
         import cv2
-        template = None
-        if pattern_path and pattern_path.exists():
-            template = cv2.imread(str(pattern_path))
+        patterns_dir = Path(__file__).parent / "processes" / "BOT" / "patterns"
 
-        # Ищем главный экран каждые 5 секунд, максимум 2 минуты
-        max_attempts = 24
-        for attempt in range(max_attempts):
-            try:
-                from processes.BOT.bot_01_screenshot import BotScreenshot
-                ss = BotScreenshot(self.adb.connected_device, None)
-                frame = ss.capture()
-                if frame is None:
-                    time.sleep(5)
-                    continue
+        for i, step in enumerate(steps):
+            pattern_name = step.get("pattern", "(нет)")
+            action = step.get("action", "skip")
 
-                found = False
+            self._set_status(f"🚀 Шаг {i+1}: паттерн='{pattern_name}' → {action}", "info")
+
+            # Если паттерн задан — ждём его появления
+            if pattern_name and pattern_name != "(нет)":
+                pattern_path = patterns_dir / f"{pattern_name}.png"
+                template = cv2.imread(str(pattern_path)) if pattern_path.exists() else None
+
                 if template is not None:
-                    # Ищем паттерн на скриншоте
-                    res = cv2.matchTemplate(frame, template, cv2.TM_CCOEFF_NORMED)
-                    _, max_val, _, _ = cv2.minMaxLoc(res)
-                    if max_val >= 0.7:
-                        found = True
-                        self._set_status(f"✅ Главный экран найден (совпадение {max_val:.2f})", "success")
-                else:
-                    # Без паттерна — используем Screen_Detector
-                    from processes.BASE_VIEW.base_01_screen_detector import ScreenDetector
-                    is_main, _, conf = ScreenDetector().detect_screen_type(frame)
-                    if is_main:
-                        found = True
-                        self._set_status(f"✅ Главный экран найден (confidence {conf:.2f})", "success")
+                    found = False
+                    for attempt in range(24):  # до 2 минут
+                        try:
+                            from processes.BOT.bot_01_screenshot import BotScreenshot
+                            ss = BotScreenshot(self.adb.connected_device, None)
+                            frame = ss.capture()
+                            if frame is not None:
+                                res = cv2.matchTemplate(frame, template, cv2.TM_CCOEFF_NORMED)
+                                _, max_val, _, max_loc = cv2.minMaxLoc(res)
+                                if max_val >= 0.7:
+                                    found = True
+                                    self._set_status(f"✅ Паттерн '{pattern_name}' найден ({max_val:.2f})", "success")
+                                    # Если действие — нажать на паттерн
+                                    if action == "tap":
+                                        h, w = template.shape[:2]
+                                        cx = max_loc[0] + w // 2
+                                        cy = max_loc[1] + h // 2
+                                        from processes.SCENARIO.scenario_04_adb_actions import do_tap
+                                        do_tap(self.adb.connected_device, cx, cy)
+                                        time.sleep(1)
+                                    break
+                        except Exception:
+                            pass
+                        time.sleep(5)
 
-                if found:
-                    # Центрируем базу
-                    self._set_status("🎯 Центрируем базу...", "info")
-                    if hasattr(self, "_base_find_center"):
-                        self._base_find_center()
-                    return
+                    if not found:
+                        self._set_status(f"⚠ Паттерн '{pattern_name}' не найден, пропускаем шаг", "warning")
+                        continue
 
-                self._set_status(f"⏳ Главный экран не найден, попытка {attempt+1}/{max_attempts}...", "warning")
+            # Выполняем действие
+            if action == "zoom_out":
+                if hasattr(self, "_base_zoom_out"):
+                    self._base_zoom_out()
+                    time.sleep(1)
+            elif action == "zoom_in":
+                if hasattr(self, "_base_zoom_in"):
+                    self._base_zoom_in()
+                    time.sleep(1)
+            elif action == "center_base":
+                self._set_status("🎯 Центрируем базу...", "info")
+                if hasattr(self, "_base_find_center"):
+                    self._base_find_center()
+            elif action == "wait_5s":
                 time.sleep(5)
-
-            except Exception as e:
-                self._log(f"[wait_and_center] Ошибка: {e}", "error")
-                time.sleep(5)
-
-        self._set_status("⚠ Главный экран не найден за 2 минуты", "warning")
+            elif action == "tap":
+                pass  # уже выполнено выше при нахождении паттерна
 
     def _resize_bluestacks_window(self, width: int, height: int):
         """Изменяет размер окна BlueStacks через win32api"""
