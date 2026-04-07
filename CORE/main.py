@@ -1274,6 +1274,39 @@ class BotMainWindow:
 
         create_separator(scroll).pack(fill=tk.X, pady=12)
 
+        # ── Паттерн главного экрана ──
+        create_label(scroll, "🎯 Паттерн главного экрана", style="dim", bg=THEME["bg_main"]).pack(anchor="w", pady=(0, 4))
+        create_label(scroll, "Паттерн используется для определения что игра загрузила главный экран.", style="dim", bg=THEME["bg_main"]).pack(anchor="w", pady=(0, 6))
+
+        pattern_row = tk.Frame(scroll, bg=THEME["bg_main"])
+        pattern_row.pack(fill=tk.X, pady=2)
+
+        create_label(pattern_row, "Паттерн:", style="normal", bg=THEME["bg_main"]).pack(side=tk.LEFT)
+
+        self._dev_main_screen_pattern = tk.StringVar(value="")
+        self._dev_pattern_combo = tk.OptionMenu(pattern_row, self._dev_main_screen_pattern, "")
+        self._dev_pattern_combo.config(
+            bg=THEME["bg_input"], fg=THEME["accent_blue"],
+            font=THEME["font_normal"], relief=tk.FLAT,
+            activebackground=THEME["bg_card"],
+        )
+        self._dev_pattern_combo.pack(side=tk.LEFT, padx=8)
+
+        def _refresh_patterns():
+            patterns_dir = Path(__file__).parent / "processes" / "BOT" / "patterns"
+            files = [f.stem for f in patterns_dir.glob("*.png")]
+            menu = self._dev_pattern_combo["menu"]
+            menu.delete(0, "end")
+            for f in files:
+                menu.add_command(label=f, command=lambda v=f: self._dev_main_screen_pattern.set(v))
+            if files and not self._dev_main_screen_pattern.get():
+                self._dev_main_screen_pattern.set(files[0])
+
+        create_button(pattern_row, "🔄", _refresh_patterns, width=4).pack(side=tk.LEFT)
+        _refresh_patterns()
+
+        create_separator(scroll).pack(fill=tk.X, pady=12)
+
         # ── Кнопки ──
         btn_row = tk.Frame(scroll, bg=THEME["bg_main"])
         btn_row.pack(anchor="w")
@@ -1653,11 +1686,82 @@ class BotMainWindow:
             self.root.after(0, lambda: self.header_status.config(
                 text="● РАБОТАЕТ", fg=THEME["accent_green"]
             ))
+            # Ждём загрузки игры и центрируем базу
+            threading.Thread(target=self._wait_and_center, daemon=True).start()
         else:
             self._set_status("❌ Ошибка при запуске игры", "error")
             self._set_stat("Игра", "❌ Ошибка", "error")
 
         self.root.after(0, lambda: self.start_btn.config(state=tk.NORMAL))
+
+    def _wait_and_center(self):
+        """Ждёт загрузки главного экрана CoC и центрирует базу."""
+        import time
+        import io
+        import numpy as np
+
+        self._set_status("⏳ Ждём загрузки игры (15 сек)...", "info")
+        time.sleep(15)
+
+        if not self.adb.connected_device:
+            return
+
+        # Получаем паттерн главного экрана из DEV настроек
+        pattern_name = getattr(self, "_dev_main_screen_pattern", None)
+        pattern_name = pattern_name.get() if pattern_name else ""
+
+        patterns_dir = Path(__file__).parent / "processes" / "BOT" / "patterns"
+        pattern_path = patterns_dir / f"{pattern_name}.png" if pattern_name else None
+
+        self._set_status("🔍 Ищем главный экран...", "info")
+
+        import cv2
+        template = None
+        if pattern_path and pattern_path.exists():
+            template = cv2.imread(str(pattern_path))
+
+        # Ищем главный экран каждые 5 секунд, максимум 2 минуты
+        max_attempts = 24
+        for attempt in range(max_attempts):
+            try:
+                from processes.BOT.bot_01_screenshot import BotScreenshot
+                ss = BotScreenshot(self.adb.connected_device, None)
+                frame = ss.capture()
+                if frame is None:
+                    time.sleep(5)
+                    continue
+
+                found = False
+                if template is not None:
+                    # Ищем паттерн на скриншоте
+                    res = cv2.matchTemplate(frame, template, cv2.TM_CCOEFF_NORMED)
+                    _, max_val, _, _ = cv2.minMaxLoc(res)
+                    if max_val >= 0.7:
+                        found = True
+                        self._set_status(f"✅ Главный экран найден (совпадение {max_val:.2f})", "success")
+                else:
+                    # Без паттерна — используем Screen_Detector
+                    from processes.BASE_VIEW.base_01_screen_detector import ScreenDetector
+                    is_main, _, conf = ScreenDetector().detect_screen_type(frame)
+                    if is_main:
+                        found = True
+                        self._set_status(f"✅ Главный экран найден (confidence {conf:.2f})", "success")
+
+                if found:
+                    # Центрируем базу
+                    self._set_status("🎯 Центрируем базу...", "info")
+                    if hasattr(self, "_base_find_center"):
+                        self._base_find_center()
+                    return
+
+                self._set_status(f"⏳ Главный экран не найден, попытка {attempt+1}/{max_attempts}...", "warning")
+                time.sleep(5)
+
+            except Exception as e:
+                self._log(f"[wait_and_center] Ошибка: {e}", "error")
+                time.sleep(5)
+
+        self._set_status("⚠ Главный экран не найден за 2 минуты", "warning")
 
     def _resize_bluestacks_window(self, width: int, height: int):
         """Изменяет размер окна BlueStacks через win32api"""
