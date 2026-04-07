@@ -1118,7 +1118,7 @@ class BotMainWindow:
         dev_row = tk.Frame(scroll, bg=THEME["bg_main"])
         dev_row.pack(fill=tk.X, pady=4)
 
-        self._dev_mode_var = tk.BooleanVar(value=False)
+        self._dev_mode_var = tk.BooleanVar(value=config.get("dev_mode", False))
 
         def _toggle_dev_mode():
             enabled = self._dev_mode_var.get()
@@ -1126,9 +1126,12 @@ class BotMainWindow:
                 self.tab_buttons["dev"].pack(side=tk.LEFT)
             else:
                 self.tab_buttons["dev"].pack_forget()
-                # Если сейчас открыта DEV вкладка — переключаемся на settings
                 if hasattr(self, "_current_tab") and self._current_tab == "dev":
                     self._switch_tab("settings")
+
+        # Применяем сохранённое состояние при старте
+        if config.get("dev_mode", False):
+            self.tab_buttons["dev"].pack(side=tk.LEFT)
 
         dev_check = tk.Checkbutton(
             dev_row,
@@ -1171,6 +1174,7 @@ class BotMainWindow:
             bs["window_height"] = int(self.cfg_bs_height.get())
             config.setdefault("bot_settings", {})["threshold"] = float(self.cfg_threshold.get())
             config["bot_settings"]["action_delay"] = float(self.cfg_action_delay.get())
+            config["dev_mode"] = self._dev_mode_var.get()
 
             with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2, ensure_ascii=False)
