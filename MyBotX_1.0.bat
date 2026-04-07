@@ -174,9 +174,9 @@ if "!MISSING!"=="1" (
     )
     if defined MISS_BS (
         echo  - BlueStacks 5
-        echo    https://www.bluestacks.com/download.html
+        echo    https://cdn3.bluestacks.com/public/BlueStacksInstaller_5.exe
         echo.
-        start "" "https://www.bluestacks.com/download.html"
+        start "" "https://cdn3.bluestacks.com/public/BlueStacksInstaller_5.exe"
     )
     echo.
     echo  Install missing components and run MyBotX again.
