@@ -8,216 +8,250 @@ cls
 
 echo.
 echo ════════════════════════════════════════════════════════
-echo     MyBotX 1.0  —  Автоматическая установка
+echo     MyBotX 1.0  —  Запуск
 echo ════════════════════════════════════════════════════════
 echo.
 
 set "ROOT_DIR=%~dp0"
 set "BOT_DIR=%ROOT_DIR%BOT_APPLICATIONS"
 set "TOOLS_DIR=%BOT_DIR%\platform-tools"
-
-REM ── Версии и URL ─────────────────────────────────────────
-REM Python 3.10.11 — зафиксирована, код использует синтаксис 3.10+
 set "PYTHON_VER=3.10.11"
-set "PYTHON_URL=https://www.python.org/ftp/python/3.10.11/python-3.10.11-amd64.exe"
-set "PYTHON_INSTALLER=%BOT_DIR%\python-3.10.11-amd64.exe"
+set "PYTHON_EXE="
+set "LAPPDATA=%LOCALAPPDATA%"
 
-REM BlueStacks 5 (latest) — любая версия BS5 совместима с ботом
-REM Бот использует только: HD-Player.exe, реестр BlueStacks_nxt, ADB порты 5555-5559
-set "BLUESTACKS_URL=https://cdn3.bluestacks.com/public/BlueStacksInstaller_5.exe"
-set "BLUESTACKS_INSTALLER=%BOT_DIR%\BlueStacksInstaller_5.exe"
-
-REM ADB platform-tools (latest) — Google гарантирует обратную совместимость
-REM Используем только: adb connect, adb shell, adb exec-out screencap
-set "ADB_URL=https://dl.google.com/android/repository/platform-tools-latest-windows.zip"
-set "ADB_ZIP=%BOT_DIR%\platform-tools.zip"
-
-REM ── Создаём папку BOT_APPLICATIONS если нет ──────────────
 if not exist "%BOT_DIR%" mkdir "%BOT_DIR%"
 
-REM ── Закрываем предыдущие экземпляры ─────────────────────
-echo 🔄 Закрываем предыдущие экземпляры MyBotX...
+REM ── Закрываем предыдущие экземпляры ──────────────────────
+echo Закрываем предыдущие экземпляры MyBotX...
 taskkill /IM "python.exe" /F >nul 2>&1
 taskkill /IM "pythonw.exe" /F >nul 2>&1
 timeout /t 1 /nobreak >nul
 
 REM ══════════════════════════════════════════════════════════
-REM  ШАГ 1: Python 3.10.11
+REM  ШАГ 1-3: Проверка компонентов
 REM ══════════════════════════════════════════════════════════
 echo.
-echo 🐍 [1/4] Проверка Python %PYTHON_VER%...
-
-python --version >nul 2>&1
-if not errorlevel 1 (
-    REM Python найден — проверяем что версия >= 3.10
-    for /f "tokens=2" %%v in ('python --version 2^>^&1') do set "PY_VER=%%v"
-    for /f "tokens=1,2 delims=." %%a in ("!PY_VER!") do (
-        set "PY_MAJOR=%%a"
-        set "PY_MINOR=%%b"
-    )
-    if !PY_MAJOR! GEQ 3 if !PY_MINOR! GEQ 10 goto python_ok
-    echo ⚠️  Найден Python !PY_VER!, нужен 3.10+. Устанавливаем 3.10.11...
-)
-
-REM Python не найден или версия старая — скачиваем 3.10.11
-if not exist "%PYTHON_INSTALLER%" (
-    echo 📥 Скачиваем Python %PYTHON_VER% ^(~28 MB^)...
-    powershell -Command "& { $ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri '%PYTHON_URL%' -OutFile '%PYTHON_INSTALLER%' }"
-    if not exist "%PYTHON_INSTALLER%" (
-        echo ❌ Не удалось скачать Python. Проверьте интернет-соединение.
-        pause
-        exit /b 1
-    )
-    echo ✅ Python %PYTHON_VER% скачан
-)
-
-echo 📦 Устанавливаем Python %PYTHON_VER%...
-"%PYTHON_INSTALLER%" /quiet InstallAllUsers=1 PrependPath=1 Include_tcltk=1 Include_pip=1 Include_launcher=1
-if errorlevel 1 (
-    echo ❌ Ошибка установки Python!
-    pause
-    exit /b 1
-)
-echo ✅ Python %PYTHON_VER% установлен!
-
-REM Обновляем PATH из реестра в текущей сессии
-for /f "tokens=2*" %%a in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v "Path" 2^>nul') do set "SYS_PATH=%%b"
-for /f "tokens=2*" %%a in ('reg query "HKCU\Environment" /v "Path" 2^>nul') do set "USR_PATH=%%b"
-set "PATH=%SYS_PATH%;%USR_PATH%;%PATH%"
-
-python --version >nul 2>&1
-if errorlevel 1 (
-    echo ⚠️  Перезапускаем скрипт с обновлённым PATH...
-    start "" cmd /c ""%~f0""
-    exit /b 0
-)
-
-:python_ok
-for /f "tokens=*" %%v in ('python --version 2^>^&1') do echo ✅ %%v
-
-python -c "import tkinter" >nul 2>&1
-if errorlevel 1 (
-    echo ❌ tkinter недоступен! Переустановите Python с галочкой tcl/tk.
-    pause
-    exit /b 1
-)
-echo ✅ tkinter доступен
-
-REM ══════════════════════════════════════════════════════════
-REM  ШАГ 2: ADB platform-tools
-REM ══════════════════════════════════════════════════════════
+echo ════════════════════════════════════════════════════════
+echo   Проверка необходимых компонентов
+echo ════════════════════════════════════════════════════════
 echo.
-echo 🔧 [2/4] Проверка ADB...
+
+set "MISSING=0"
+
+REM ─────────────────────────────────────────────────────────
+REM  Python: ищем по всем возможным путям, минуя Store-заглушку
+REM ─────────────────────────────────────────────────────────
+echo [1/3] Проверка Python %PYTHON_VER%...
+
+REM 1. Стандартные пути установки "только для текущего пользователя"
+for %%V in (313 312 311 310 39 38) do (
+    if exist "!LAPPDATA!\Programs\Python\Python%%V\python.exe" (
+        call :check_python "!LAPPDATA!\Programs\Python\Python%%V\python.exe"
+        if defined PYTHON_EXE goto :py_done
+    )
+)
+
+REM 2. Системные пути (InstallAllUsers=1)
+for %%V in (313 312 311 310 39 38) do (
+    if exist "C:\Program Files\Python%%V\python.exe" (
+        call :check_python "C:\Program Files\Python%%V\python.exe"
+        if defined PYTHON_EXE goto :py_done
+    )
+    if exist "C:\Program Files (x86)\Python%%V\python.exe" (
+        call :check_python "C:\Program Files (x86)\Python%%V\python.exe"
+        if defined PYTHON_EXE goto :py_done
+    )
+    if exist "C:\Python%%V\python.exe" (
+        call :check_python "C:\Python%%V\python.exe"
+        if defined PYTHON_EXE goto :py_done
+    )
+)
+
+REM 3. Реестр — HKCU (установка для пользователя)
+for /f "tokens=2*" %%a in ('reg query "HKCU\Software\Python\PythonCore" /s /v "ExecutablePath" 2^>nul') do (
+    if exist "%%b" (
+        echo "%%b" | findstr /i "WindowsApps" >nul 2>&1
+        if errorlevel 1 (
+            call :check_python "%%b"
+            if defined PYTHON_EXE goto :py_done
+        )
+    )
+)
+
+REM 4. Реестр — HKLM (системная установка)
+for /f "tokens=2*" %%a in ('reg query "HKLM\Software\Python\PythonCore" /s /v "ExecutablePath" 2^>nul') do (
+    if exist "%%b" (
+        echo "%%b" | findstr /i "WindowsApps" >nul 2>&1
+        if errorlevel 1 (
+            call :check_python "%%b"
+            if defined PYTHON_EXE goto :py_done
+        )
+    )
+)
+
+REM 5. where python — последний шанс, пропускаем WindowsApps
+for /f "delims=" %%p in ('where python 2^>nul') do (
+    echo "%%p" | findstr /i "WindowsApps" >nul 2>&1
+    if errorlevel 1 (
+        call :check_python "%%p"
+        if defined PYTHON_EXE goto :py_done
+    )
+)
+
+:py_done
+if not defined PYTHON_EXE (
+    echo  [X] Python — НЕ НАЙДЕН
+    set "MISSING=1"
+    set "MISS_PYTHON=1"
+)
+
+REM ─────────────────────────────────────────────────────────
+REM  ADB
+REM ─────────────────────────────────────────────────────────
+echo [2/3] Проверка ADB...
+set "ADB_EXE="
 
 if exist "%TOOLS_DIR%\adb.exe" (
-    for /f "tokens=5" %%v in ('"%TOOLS_DIR%\adb.exe" version 2^>^&1 ^| findstr "Version"') do echo ✅ ADB %%v
-    goto adb_ok
+    set "ADB_EXE=%TOOLS_DIR%\adb.exe"
+    echo  [OK] ADB — найден локально
+    goto :adb_done
 )
 
-where adb >nul 2>&1
-if not errorlevel 1 (
-    echo ✅ Используем системный ADB
-    goto adb_ok
-)
-
-if not exist "%ADB_ZIP%" (
-    echo 📥 Скачиваем Android platform-tools ^(~10 MB^)...
-    powershell -Command "& { $ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri '%ADB_URL%' -OutFile '%ADB_ZIP%' }"
-    if not exist "%ADB_ZIP%" (
-        echo ❌ Не удалось скачать ADB. Проверьте интернет-соединение.
-        pause
-        exit /b 1
+for /f "delims=" %%p in ('where adb 2^>nul') do (
+    if exist "%%p" (
+        set "ADB_EXE=%%p"
+        echo  [OK] ADB — найден в системе
+        goto :adb_done
     )
 )
 
-echo 📦 Распаковываем platform-tools...
-powershell -Command "Expand-Archive -Path '%ADB_ZIP%' -DestinationPath '%BOT_DIR%' -Force" >nul 2>&1
-if not exist "%TOOLS_DIR%\adb.exe" (
-    echo ❌ Не удалось распаковать ADB!
+echo  [X] ADB — НЕ НАЙДЕН
+set "MISSING=1"
+set "MISS_ADB=1"
+:adb_done
+
+REM ─────────────────────────────────────────────────────────
+REM  BlueStacks 5
+REM ─────────────────────────────────────────────────────────
+echo [3/3] Проверка BlueStacks 5...
+set "BS_FOUND=0"
+
+for %%P in (
+    "C:\Program Files\BlueStacks_nxt\HD-Player.exe"
+    "C:\Program Files (x86)\BlueStacks_nxt\HD-Player.exe"
+    "C:\Program Files\BlueStacks\HD-Player.exe"
+    "C:\Program Files (x86)\BlueStacks\HD-Player.exe"
+) do (
+    if exist %%P set "BS_FOUND=1"
+)
+
+if "!BS_FOUND!"=="0" (
+    for /f "tokens=2*" %%a in ('reg query "HKLM\SOFTWARE\BlueStacks_nxt" /v "InstallDir" 2^>nul') do (
+        if exist "%%b\HD-Player.exe" set "BS_FOUND=1"
+    )
+)
+if "!BS_FOUND!"=="0" (
+    for /f "tokens=2*" %%a in ('reg query "HKLM\SOFTWARE\WOW6432Node\BlueStacks_nxt" /v "InstallDir" 2^>nul') do (
+        if exist "%%b\HD-Player.exe" set "BS_FOUND=1"
+    )
+)
+if "!BS_FOUND!"=="0" (
+    for /f "tokens=2*" %%a in ('reg query "HKCU\SOFTWARE\BlueStacks_nxt" /v "InstallDir" 2^>nul') do (
+        if exist "%%b\HD-Player.exe" set "BS_FOUND=1"
+    )
+)
+
+if "!BS_FOUND!"=="1" (
+    echo  [OK] BlueStacks 5 — найден
+) else (
+    echo  [X] BlueStacks 5 — НЕ НАЙДЕН
+    set "MISSING=1"
+    set "MISS_BS=1"
+)
+
+REM ─────────────────────────────────────────────────────────
+REM  Если что-то отсутствует — показываем список и открываем ссылки
+REM ─────────────────────────────────────────────────────────
+if "!MISSING!"=="1" (
+    echo.
+    echo ════════════════════════════════════════════════════════
+    echo   Отсутствующие компоненты. Открываем страницы загрузки:
+    echo ════════════════════════════════════════════════════════
+    echo.
+    if defined MISS_PYTHON (
+        echo  - Python 3.10.11
+        echo    https://www.python.org/ftp/python/3.10.11/python-3.10.11-amd64.exe
+        echo.
+        start "" "https://www.python.org/ftp/python/3.10.11/python-3.10.11-amd64.exe"
+    )
+    if defined MISS_ADB (
+        echo  - ADB ^(Android Platform Tools^)
+        echo    https://dl.google.com/android/repository/platform-tools-latest-windows.zip
+        echo.
+        start "" "https://dl.google.com/android/repository/platform-tools-latest-windows.zip"
+    )
+    if defined MISS_BS (
+        echo  - BlueStacks 5
+        echo    https://www.bluestacks.com/download.html
+        echo.
+        start "" "https://www.bluestacks.com/download.html"
+    )
+    echo  Установите компоненты и запустите MyBotX снова.
     pause
     exit /b 1
 )
-echo ✅ ADB установлен
 
-:adb_ok
-
-REM ══════════════════════════════════════════════════════════
-REM  ШАГ 3: BlueStacks 5
-REM ══════════════════════════════════════════════════════════
 echo.
-echo 📱 [3/4] Проверка BlueStacks 5...
-
-REM Проверяем стандартные пути
-if exist "C:\Program Files\BlueStacks_nxt\HD-Player.exe" goto bluestacks_ok
-if exist "C:\Program Files (x86)\BlueStacks_nxt\HD-Player.exe" goto bluestacks_ok
-if exist "C:\Program Files\BlueStacks\HD-Player.exe" goto bluestacks_ok
-if exist "C:\Program Files (x86)\BlueStacks\HD-Player.exe" goto bluestacks_ok
-
-REM Проверяем реестр
-for /f "tokens=2*" %%a in ('reg query "HKLM\SOFTWARE\BlueStacks_nxt" /v "InstallDir" 2^>nul') do (
-    if exist "%%b\HD-Player.exe" goto bluestacks_ok
-)
-for /f "tokens=2*" %%a in ('reg query "HKLM\SOFTWARE\WOW6432Node\BlueStacks_nxt" /v "InstallDir" 2^>nul') do (
-    if exist "%%b\HD-Player.exe" goto bluestacks_ok
-)
-
-REM BlueStacks не найден — ищем локальный установщик
-echo ❌ BlueStacks 5 не найден
-for %%f in ("%BOT_DIR%\BlueStacks*.exe") do (
-    set "BLUESTACKS_INSTALLER=%%f"
-    goto bs_install
-)
-
-REM Скачиваем онлайн-установщик (~2 MB, сам докачивает ~1.5 GB при установке)
-echo 📥 Скачиваем установщик BlueStacks 5 ^(~2 MB, затем ~1.5 GB при установке^)...
-powershell -Command "& { $ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri '%BLUESTACKS_URL%' -OutFile '%BLUESTACKS_INSTALLER%' }"
-if not exist "%BLUESTACKS_INSTALLER%" (
-    echo ❌ Не удалось скачать BlueStacks. Проверьте интернет-соединение.
-    pause
-    exit /b 1
-)
-
-:bs_install
-echo 📦 Устанавливаем BlueStacks 5 ^(это займёт несколько минут^)...
-start /wait "" "%BLUESTACKS_INSTALLER%" -s
-echo ✅ BlueStacks 5 установлен!
-
-:bluestacks_ok
-REM Показываем версию из реестра
-for /f "tokens=2*" %%a in ('reg query "HKLM\SOFTWARE\BlueStacks_nxt" /v "Version" 2^>nul') do echo ✅ BlueStacks %%b
-for /f "tokens=2*" %%a in ('reg query "HKLM\SOFTWARE\WOW6432Node\BlueStacks_nxt" /v "Version" 2^>nul') do echo ✅ BlueStacks %%b
+echo  [OK] Все компоненты найдены.
 
 REM ══════════════════════════════════════════════════════════
 REM  ШАГ 4: Python пакеты
 REM ══════════════════════════════════════════════════════════
 echo.
-echo 📦 [4/4] Проверка Python пакетов...
-echo     psutil==5.9.6  Pillow==10.1.0  opencv-python==4.8.1.78
-echo     numpy==1.26.4  pywin32==306    pyautogui==0.9.54
+echo [4/4] Проверка Python пакетов...
 
-python "%ROOT_DIR%CORE\check_requirements.py" >nul 2>&1
+"!PYTHON_EXE!" "%ROOT_DIR%CORE\check_requirements.py" >nul 2>&1
 if not errorlevel 1 (
-    echo ✅ Все пакеты уже установлены
-    goto packages_ok
+    echo  [OK] Все пакеты установлены
+    goto :packages_ok
 )
 
-echo ⚙️  Устанавливаем пакеты...
-python -m pip install --upgrade pip --quiet
-python -m pip install -r "%ROOT_DIR%CORE\requirements.txt"
+echo  Устанавливаем пакеты...
+
+REM Восстанавливаем pip если отсутствует
+"!PYTHON_EXE!" -m pip --version >nul 2>&1
 if errorlevel 1 (
-    echo ❌ Ошибка установки пакетов!
+    echo  pip не найден, восстанавливаем...
+    "!PYTHON_EXE!" -m ensurepip --upgrade >nul 2>&1
+    if errorlevel 1 (
+        REM ensurepip не сработал — пробуем get-pip.py
+        echo  Скачиваем get-pip.py...
+        powershell -Command "& { $ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri 'https://bootstrap.pypa.io/get-pip.py' -OutFile '%TEMP%\get-pip.py' }" >nul 2>&1
+        "!PYTHON_EXE!" "%TEMP%\get-pip.py" --quiet
+        if errorlevel 1 (
+            echo  [ERR] Не удалось установить pip. Переустановите Python с галочкой pip.
+            pause
+            exit /b 1
+        )
+    )
+)
+
+"!PYTHON_EXE!" -m pip install --upgrade pip --quiet
+"!PYTHON_EXE!" -m pip install -r "%ROOT_DIR%CORE\requirements.txt"
+if errorlevel 1 (
+    echo  [ERR] Ошибка установки пакетов!
     pause
     exit /b 1
 )
 
 REM pywin32 требует post-install шаг
-python -c "import win32gui" >nul 2>&1
+"!PYTHON_EXE!" -c "import win32gui" >nul 2>&1
 if errorlevel 1 (
-    echo ⚙️  Настройка pywin32...
-    python -m pywin32_postinstall -install >nul 2>&1
+    echo  Настройка pywin32...
+    "!PYTHON_EXE!" -m pywin32_postinstall -install >nul 2>&1
 )
 
-echo ✅ Все пакеты установлены
+echo  [OK] Все пакеты установлены
 
 :packages_ok
 
@@ -226,17 +260,38 @@ REM  ЗАПУСК
 REM ══════════════════════════════════════════════════════════
 echo.
 echo ════════════════════════════════════════════════════════
-echo  ✅ Все проверки пройдены. Запускаем MyBotX...
+echo  Все проверки пройдены. Запускаем MyBotX...
 echo ════════════════════════════════════════════════════════
 echo.
 
 if not exist "%ROOT_DIR%CORE\main.py" (
-    echo ❌ Файл CORE\main.py не найден!
+    echo  [ERR] Файл CORE\main.py не найден!
     pause
     exit /b 1
 )
 
 cd /d "%ROOT_DIR%CORE"
-start "" python main.py
+start "" "!PYTHON_EXE!" main.py
 timeout /t 2 /nobreak >nul
 exit /b 0
+
+REM ══════════════════════════════════════════════════════════
+REM  ПОДПРОГРАММА: проверка конкретного python.exe
+REM  Вход:  %1 — путь к python.exe
+REM  Выход: PYTHON_EXE, PY_VER устанавливаются если версия >= 3.10
+REM ══════════════════════════════════════════════════════════
+:check_python
+set "_PY_TMP="
+for /f "tokens=2" %%v in ('"%~1" --version 2^>^&1') do set "_PY_TMP=%%v"
+echo !_PY_TMP! | findstr /r "^[0-9][0-9]*\.[0-9]" >nul 2>&1
+if errorlevel 1 goto :eof
+for /f "tokens=1,2 delims=." %%a in ("!_PY_TMP!") do (
+    if %%a GEQ 3 if %%b GEQ 10 (
+        set "PYTHON_EXE=%~1"
+        set "PY_VER=!_PY_TMP!"
+        echo  [OK] Python !_PY_TMP! — !PYTHON_EXE!
+    ) else (
+        echo  [X] Python !_PY_TMP! — версия ниже 3.10, пропускаем
+    )
+)
+goto :eof

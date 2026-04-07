@@ -28,7 +28,8 @@ class BotTap:
         try:
             result = subprocess.run(
                 [_get_adb_path(), "-s", self.device, "shell", "input", "tap", str(x), str(y)],
-                capture_output=True, timeout=5
+                capture_output=True, timeout=5,
+                creationflags=subprocess.CREATE_NO_WINDOW
             )
             if result.returncode == 0:
                 self.log(f"👆 Нажатие: ({x}, {y})")
@@ -50,7 +51,8 @@ class BotTap:
             result = subprocess.run(
                 [_get_adb_path(), "-s", self.device, "shell", "input", "swipe",
                  str(x1), str(y1), str(x2), str(y2), str(duration_ms)],
-                capture_output=True, timeout=10
+                capture_output=True, timeout=10,
+                creationflags=subprocess.CREATE_NO_WINDOW
             )
             self.log(f"👆 Свайп: ({x1},{y1}) → ({x2},{y2})")
             return result.returncode == 0

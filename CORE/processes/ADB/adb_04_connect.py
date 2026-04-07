@@ -44,8 +44,9 @@ class ADBProcess05Connect:
                 [_get_adb_path(), "connect", serial],
                 capture_output=True,
                 text=True,
-                timeout=15,  # ✅ Увеличили до 15 сек
-                check=False
+                timeout=15,
+                check=False,
+                creationflags=subprocess.CREATE_NO_WINDOW
             )
 
             if result.returncode == 0:
@@ -87,7 +88,8 @@ class ADBProcess05Connect:
                 capture_output=True,
                 text=True,
                 timeout=5,
-                check=False
+                check=False,
+                creationflags=subprocess.CREATE_NO_WINDOW
             )
 
             if log_callback:

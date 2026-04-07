@@ -37,7 +37,8 @@ def set_fixed_resolution(device: str, log=None) -> bool:
         result = subprocess.run(
             [_get_adb(), "-s", device, "shell", "wm", "size",
              f"{FIXED_WIDTH}x{FIXED_HEIGHT}"],
-            capture_output=True, timeout=10
+            capture_output=True, timeout=10,
+            creationflags=subprocess.CREATE_NO_WINDOW
         )
         if result.returncode == 0:
             _log(f"✅ Разрешение Android зафиксировано: {FIXED_WIDTH}x{FIXED_HEIGHT}", "success")
@@ -55,7 +56,8 @@ def get_current_resolution(device: str) -> tuple[int, int] | None:
     try:
         result = subprocess.run(
             [_get_adb(), "-s", device, "shell", "wm", "size"],
-            capture_output=True, text=True, timeout=10
+            capture_output=True, text=True, timeout=10,
+            creationflags=subprocess.CREATE_NO_WINDOW
         )
         # Вывод: "Physical size: 1280x720" или "Override size: 1280x720"
         for line in result.stdout.splitlines():

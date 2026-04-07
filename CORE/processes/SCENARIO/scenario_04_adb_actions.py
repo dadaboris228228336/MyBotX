@@ -19,7 +19,8 @@ def _get_adb() -> str:
 
 def _run(device: str, args: list, timeout: int = 10):
     return subprocess.run([_get_adb(), "-s", device, *args],
-                         capture_output=True, timeout=timeout)
+                         capture_output=True, timeout=timeout,
+                         creationflags=subprocess.CREATE_NO_WINDOW)
 
 
 def do_tap(device: str, x: int, y: int):

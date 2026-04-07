@@ -39,6 +39,7 @@ BUILDER/work/
 Thumbs.db
 Desktop.ini
 $RECYCLE.BIN/
+nul
 
 # Kiro
 .kiro/

@@ -33,7 +33,8 @@ class BotScreenshot:
             result = subprocess.run(
                 [_get_adb_path(), "-s", self.device, "exec-out", "screencap", "-p"],
                 capture_output=True,
-                timeout=10
+                timeout=10,
+                creationflags=subprocess.CREATE_NO_WINDOW
             )
             if result.returncode != 0:
                 self.log(f"❌ Ошибка скриншота: {result.stderr}")
