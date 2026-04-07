@@ -141,17 +141,8 @@
     "window_width": 1280,
     "window_height": 720
   },
-  "auto_settings": {
-    "minimize_bs": false,
-    "minimize_bs_delay": "1",
-    "minimize_bot": false,
-    "minimize_bot_delay": "1",
-    "autorun_scenario": false,
-    "repeat_scenario": false,
-    "repeat_count": "0",
-    "repeat_pause": false,
-    "repeat_pause_secs": "5",
-    "notify_done": false,
-    "verbose_log": false
+  "bot_settings": {
+    "threshold": 0.8,
+    "action_delay": 1.0
   }
 }
