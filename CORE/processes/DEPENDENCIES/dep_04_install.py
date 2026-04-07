@@ -14,15 +14,27 @@ def _get_python() -> str:
     exe = Path(sys.executable)
     if exe.name.lower() == "python.exe":
         return str(exe)
-    for candidate in [exe.parent / "python.exe", exe.parent / "python" / "python.exe"]:
-        if candidate.exists():
-            return str(candidate)
-    for path in [
+    try:
+        result = subprocess.run(
+            ["where", "python"], capture_output=True, text=True, timeout=5,
+            creationflags=subprocess.CREATE_NO_WINDOW
+        )
+        if result.returncode == 0:
+            for line in result.stdout.strip().splitlines():
+                p = Path(line.strip())
+                if p.exists() and p.name.lower() == "python.exe":
+                    return str(p)
+    except Exception:
+        pass
+    for p in [
         Path(r"C:\Program Files\Python310\python.exe"),
         Path(r"C:\Program Files (x86)\Python310\python.exe"),
+        Path.home() / r"AppData\Local\Programs\Python\Python310\python.exe",
+        Path.home() / r"AppData\Local\Programs\Python\Python311\python.exe",
+        Path.home() / r"AppData\Local\Programs\Python\Python312\python.exe",
     ]:
-        if path.exists():
-            return str(path)
+        if p.exists():
+            return str(p)
     return "python"
 
 

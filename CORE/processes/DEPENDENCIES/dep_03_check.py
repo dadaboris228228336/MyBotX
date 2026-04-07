@@ -15,31 +15,41 @@ def _get_python() -> str:
     """
     Возвращает путь к реальному python.exe.
     В PyInstaller-сборке sys.executable указывает на MyBotX.exe,
-    поэтому ищем python.exe рядом или в PATH.
+    поэтому ищем python.exe через where и стандартные пути.
     """
     # Если запущены как обычный скрипт — sys.executable это python.exe
     exe = Path(sys.executable)
     if exe.name.lower() == "python.exe":
         return str(exe)
 
-    # Запущены из PyInstaller EXE — ищем python.exe рядом с EXE
-    for candidate in [
-        exe.parent / "python.exe",
-        exe.parent / "python" / "python.exe",
-    ]:
-        if candidate.exists():
-            return str(candidate)
+    # Ищем через where (работает если Python в PATH)
+    try:
+        result = subprocess.run(
+            ["where", "python"],
+            capture_output=True, text=True, timeout=5,
+            creationflags=subprocess.CREATE_NO_WINDOW
+        )
+        if result.returncode == 0:
+            for line in result.stdout.strip().splitlines():
+                p = Path(line.strip())
+                if p.exists() and p.name.lower() == "python.exe":
+                    return str(p)
+    except Exception:
+        pass
 
-    # Ищем в стандартных путях установки Python 3.10
-    for path in [
+    # Стандартные пути установки Python 3.10
+    username = Path.home().name
+    candidates = [
         Path(r"C:\Program Files\Python310\python.exe"),
         Path(r"C:\Program Files (x86)\Python310\python.exe"),
-        Path(r"C:\Users") / Path(sys.executable).parts[2] / r"AppData\Local\Programs\Python\Python310\python.exe",
-    ]:
-        if path.exists():
-            return str(path)
+        Path.home() / r"AppData\Local\Programs\Python\Python310\python.exe",
+        Path.home() / r"AppData\Local\Programs\Python\Python311\python.exe",
+        Path.home() / r"AppData\Local\Programs\Python\Python312\python.exe",
+    ]
+    for p in candidates:
+        if p.exists():
+            return str(p)
 
-    # Fallback — системный python
     return "python"
 
 
@@ -50,13 +60,13 @@ class DepProcess03Check:
     def get_installed_packages(log_callback=None) -> list:
         """
         ПРОЦЕСС 4: Получение установленных пакетов через pip list --format=json
-        
-        Args:
-            log_callback: Функция логирования
-            
-        Returns:
-            list: Список имен установленных пакетов
         """
+        # Если запущены из PyInstaller EXE — все пакеты уже встроены, проверка не нужна
+        if getattr(sys, 'frozen', False):
+            if log_callback:
+                log_callback("✅ Запущено из EXE — все пакеты встроены")
+            return ["psutil", "pillow", "opencv-python", "numpy", "pywin32", "pyautogui"]
+
         try:
             if log_callback:
                 log_callback("🔍 Проверка наших пакетов...")
