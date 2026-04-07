@@ -5,6 +5,8 @@
 Скачайте архив и распакуйте его в любую папку на компьютере.
 Например: `C:\MyBotX\`
 
+> ADB (Android Platform Tools) уже включён в архив — скачивать отдельно не нужно.
+
 ---
 
 ## Шаг 2 — Установите Python 3.10.11
@@ -17,35 +19,19 @@
 
 ---
 
-## Шаг 3 — Установите ADB (Android Platform Tools)
-
-1. Откройте скачанный файл `platform-tools-latest-windows.zip`
-2. Распакуйте папку `platform-tools` в папку проекта `BOT_APPLICATIONS\`
-
-Должно получиться вот так:
-```
-MyBotX\
-  BOT_APPLICATIONS\
-    platform-tools\
-      adb.exe
-      fastboot.exe
-      ...
-```
-
----
-
-## Шаг 4 — Установите BlueStacks 5
+## Шаг 3 — Установите BlueStacks 5
 
 1. Откройте скачанный файл `BlueStacksInstaller_5.exe`
 2. Следуйте инструкциям установщика на экране
 3. Дождитесь полной установки и первого запуска BlueStacks
-4. В BlueStacks откройте **Google Play** и установите игру **Clash of Clans**
-5. Запустите Clash of Clans и войдите в свой аккаунт
-6. После входа в игру BlueStacks можно закрыть
+4. Если появится окно **"BlueStacks needs a quick fix"** — нажмите **"Fix and restart"** и дождитесь перезапуска
+5. В BlueStacks откройте **Google Play** и установите игру **Clash of Clans**
+6. Запустите Clash of Clans и войдите в свой аккаунт
+7. После входа в игру BlueStacks можно закрыть
 
 ---
 
-## Шаг 5 — Запустите MyBotX
+## Шаг 4 — Запустите MyBotX
 
 1. Откройте папку проекта `MyBotX\`
 2. Дважды кликните на `MyBotX_1.0.bat`
@@ -59,6 +45,6 @@ MyBotX\
 | Проблема | Решение |
 |---|---|
 | Python не найден | Переустановите Python с галочкой "Add to PATH" |
-| ADB не найден | Убедитесь что папка `platform-tools` находится внутри `BOT_APPLICATIONS\` |
 | BlueStacks не найден | Установите BlueStacks и запустите его хотя бы один раз |
+| BlueStacks зациклился на "Fix and restart" | Откройте cmd от администратора и выполните: `bcdedit /set hypervisorlaunchtype off`, затем перезагрузите компьютер |
 | Ошибка пакетов | Запустите `MyBotX_1.0.bat` повторно после установки Python |
