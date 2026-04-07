@@ -1,12 +1,10 @@
 @echo off
-chcp 65001 > nul 2>&1
 setlocal enabledelayedexpansion
 cd /d "%~dp0"
 title MyBotX 1.0
 color 0A
 cls
 
-REM Защита от случайного закрытия — любая ошибка покажет паузу
 if "%1"=="" (
     cmd /k "%~f0" LAUNCHED
     exit /b
@@ -14,7 +12,7 @@ if "%1"=="" (
 
 echo.
 echo ========================================================
-echo     MyBotX 1.0  -  Zapusk
+echo     MyBotX 1.0  -  Starting...
 echo ========================================================
 echo.
 
@@ -27,21 +25,21 @@ set "LAPPDATA=%LOCALAPPDATA%"
 
 if not exist "%BOT_DIR%" mkdir "%BOT_DIR%"
 
-echo Zakryvaem predydushchie ekzemplyary MyBotX...
+echo Closing previous MyBotX instances...
 taskkill /IM "python.exe" /F >nul 2>&1
 taskkill /IM "pythonw.exe" /F >nul 2>&1
 timeout /t 1 /nobreak >nul
 
 echo.
 echo ========================================================
-echo   Proverka neobkhodimykh komponentov
+echo   Checking required components...
 echo ========================================================
 echo.
 
 set "MISSING=0"
 
 REM --- Python ---
-echo [1/3] Proverka Python %PYTHON_VER%...
+echo [1/3] Checking Python %PYTHON_VER%...
 
 if exist "%LAPPDATA%\Programs\Python\Python313\python.exe" call :check_python "%LAPPDATA%\Programs\Python\Python313\python.exe"
 if defined PYTHON_EXE goto :py_done
@@ -53,7 +51,6 @@ if exist "%LAPPDATA%\Programs\Python\Python310\python.exe" call :check_python "%
 if defined PYTHON_EXE goto :py_done
 if exist "%LAPPDATA%\Programs\Python\Python39\python.exe"  call :check_python "%LAPPDATA%\Programs\Python\Python39\python.exe"
 if defined PYTHON_EXE goto :py_done
-
 if exist "C:\Program Files\Python313\python.exe" call :check_python "C:\Program Files\Python313\python.exe"
 if defined PYTHON_EXE goto :py_done
 if exist "C:\Program Files\Python312\python.exe" call :check_python "C:\Program Files\Python312\python.exe"
@@ -71,7 +68,6 @@ if defined PYTHON_EXE goto :py_done
 if exist "C:\Python310\python.exe" call :check_python "C:\Python310\python.exe"
 if defined PYTHON_EXE goto :py_done
 
-REM Реестр HKCU
 for /f "tokens=2*" %%a in ('reg query "HKCU\Software\Python\PythonCore" /s /v "ExecutablePath" 2^>nul') do (
     if exist "%%b" (
         echo "%%b" | findstr /i "WindowsApps" >nul 2>&1
@@ -82,7 +78,6 @@ for /f "tokens=2*" %%a in ('reg query "HKCU\Software\Python\PythonCore" /s /v "E
     )
 )
 
-REM Реестр HKLM
 for /f "tokens=2*" %%a in ('reg query "HKLM\Software\Python\PythonCore" /s /v "ExecutablePath" 2^>nul') do (
     if exist "%%b" (
         echo "%%b" | findstr /i "WindowsApps" >nul 2>&1
@@ -93,7 +88,6 @@ for /f "tokens=2*" %%a in ('reg query "HKLM\Software\Python\PythonCore" /s /v "E
     )
 )
 
-REM where python — пропускаем WindowsApps
 for /f "delims=" %%p in ('where python 2^>nul') do (
     echo "%%p" | findstr /i "WindowsApps" >nul 2>&1
     if errorlevel 1 (
@@ -104,34 +98,34 @@ for /f "delims=" %%p in ('where python 2^>nul') do (
 
 :py_done
 if not defined PYTHON_EXE (
-    echo  [X] Python - NE NAJDEN
+    echo  [X] Python - NOT FOUND
     set "MISSING=1"
     set "MISS_PYTHON=1"
 )
 
 REM --- ADB ---
-echo [2/3] Proverka ADB...
+echo [2/3] Checking ADB...
 set "ADB_EXE="
 
 if exist "%TOOLS_DIR%\adb.exe" (
     set "ADB_EXE=%TOOLS_DIR%\adb.exe"
-    echo  [OK] ADB - najden lokal'no
+    echo  [OK] ADB - found locally
     goto :adb_done
 )
 for /f "delims=" %%p in ('where adb 2^>nul') do (
     if exist "%%p" (
         set "ADB_EXE=%%p"
-        echo  [OK] ADB - najden v sisteme
+        echo  [OK] ADB - found in system
         goto :adb_done
     )
 )
-echo  [X] ADB - NE NAJDEN
+echo  [X] ADB - NOT FOUND
 set "MISSING=1"
 set "MISS_ADB=1"
 :adb_done
 
 REM --- BlueStacks ---
-echo [3/3] Proverka BlueStacks 5...
+echo [3/3] Checking BlueStacks 5...
 set "BS_FOUND=0"
 if exist "C:\Program Files\BlueStacks_nxt\HD-Player.exe"       set "BS_FOUND=1"
 if exist "C:\Program Files (x86)\BlueStacks_nxt\HD-Player.exe" set "BS_FOUND=1"
@@ -155,18 +149,18 @@ if "!BS_FOUND!"=="0" (
 )
 
 if "!BS_FOUND!"=="1" (
-    echo  [OK] BlueStacks 5 - najden
+    echo  [OK] BlueStacks 5 - found
 ) else (
-    echo  [X] BlueStacks 5 - NE NAJDEN
+    echo  [X] BlueStacks 5 - NOT FOUND
     set "MISSING=1"
     set "MISS_BS=1"
 )
 
-REM --- Отсутствующие компоненты ---
+REM --- Missing components ---
 if "!MISSING!"=="1" (
     echo.
     echo ========================================================
-    echo   Otsutstvuyushchie komponenty:
+    echo   Missing components. Opening download pages...
     echo ========================================================
     echo.
     if defined MISS_PYTHON (
@@ -188,37 +182,37 @@ if "!MISSING!"=="1" (
         start "" "https://www.bluestacks.com/download.html"
     )
     echo.
-    echo  Ustanovite komponenty i zapustite MyBotX snova.
+    echo  Install missing components and run MyBotX again.
     echo.
-    timeout /t 60
+    pause
     exit /b 1
 )
 
 echo.
-echo  [OK] Vse komponenty najdeny.
+echo  [OK] All components found.
 
-REM --- Python пакеты ---
+REM --- Python packages ---
 echo.
-echo [4/4] Proverka Python paketov...
+echo [4/4] Checking Python packages...
 
 "!PYTHON_EXE!" "%ROOT_DIR%CORE\check_requirements.py" >nul 2>&1
 if not errorlevel 1 (
-    echo  [OK] Vse pakety ustanovleny
+    echo  [OK] All packages installed
     goto :packages_ok
 )
 
-echo  Ustanavlivaem pakety...
+echo  Installing packages...
 
 "!PYTHON_EXE!" -m pip --version >nul 2>&1
 if errorlevel 1 (
-    echo  pip ne najden, vosstanavlivaem...
+    echo  pip not found, restoring...
     "!PYTHON_EXE!" -m ensurepip --upgrade >nul 2>&1
     if errorlevel 1 (
         powershell -Command "& { $ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri 'https://bootstrap.pypa.io/get-pip.py' -OutFile '%TEMP%\get-pip.py' }" >nul 2>&1
         "!PYTHON_EXE!" "%TEMP%\get-pip.py" --quiet
         if errorlevel 1 (
-            echo  [ERR] Ne udalos' ustanovit' pip!
-            timeout /t 30
+            echo  [ERR] Failed to install pip. Reinstall Python with pip checkbox.
+            pause
             exit /b 1
         )
     )
@@ -227,8 +221,8 @@ if errorlevel 1 (
 "!PYTHON_EXE!" -m pip install --upgrade pip --quiet
 "!PYTHON_EXE!" -m pip install -r "%ROOT_DIR%CORE\requirements.txt"
 if errorlevel 1 (
-    echo  [ERR] Oshibka ustanovki paketov!
-    timeout /t 30
+    echo  [ERR] Package installation failed!
+    pause
     exit /b 1
 )
 
@@ -237,19 +231,19 @@ if errorlevel 1 (
     "!PYTHON_EXE!" -m pywin32_postinstall -install >nul 2>&1
 )
 
-echo  [OK] Vse pakety ustanovleny
+echo  [OK] All packages installed
 
 :packages_ok
 
 echo.
 echo ========================================================
-echo  Vse proverki projdeny. Zapuskaem MyBotX...
+echo  All checks passed. Starting MyBotX...
 echo ========================================================
 echo.
 
 if not exist "%ROOT_DIR%CORE\main.py" (
-    echo  [ERR] Fajl CORE\main.py ne najden!
-    timeout /t 30
+    echo  [ERR] File CORE\main.py not found!
+    pause
     exit /b 1
 )
 
@@ -258,7 +252,6 @@ start "" "!PYTHON_EXE!" main.py
 timeout /t 2 /nobreak >nul
 exit /b 0
 
-REM --- Подпрограмма проверки python.exe ---
 :check_python
 set "_PY_TMP="
 for /f "tokens=2" %%v in ('"%~1" --version 2^>^&1') do set "_PY_TMP=%%v"
