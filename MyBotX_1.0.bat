@@ -6,6 +6,12 @@ title MyBotX 1.0
 color 0A
 cls
 
+REM Защита от случайного закрытия — любая ошибка покажет паузу
+if "%1"=="" (
+    cmd /k "%~f0" LAUNCHED
+    exit /b
+)
+
 echo.
 echo ========================================================
 echo     MyBotX 1.0  -  Zapusk
