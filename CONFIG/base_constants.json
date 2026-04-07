@@ -1,0 +1,53 @@
+{
+    "base": {
+        "grid_width_cells": 44,
+        "grid_height_cells": 44,
+        "isometric_angle_right": 27.0,
+        "isometric_angle_left": 153.0,
+        "angle_tolerance": 3.0
+    },
+    "zoom": {
+        "pinch_step_px": 150,
+        "pinch_duration_ms": 400,
+        "max_out_steps": 5
+    },
+    "centering": {
+        "center_tolerance_px": 20,
+        "edge_margin_px": 20,
+        "max_correction_attempts": 3
+    },
+    "buildings": {
+        "town_hall": {
+            "w": 4,
+            "h": 4
+        },
+        "cannon": {
+            "w": 3,
+            "h": 3
+        },
+        "archer_tower": {
+            "w": 3,
+            "h": 3
+        },
+        "mortar": {
+            "w": 3,
+            "h": 3
+        },
+        "tesla": {
+            "w": 2,
+            "h": 2
+        },
+        "wall": {
+            "w": 1,
+            "h": 1
+        },
+        "gold_mine": {
+            "w": 3,
+            "h": 3
+        },
+        "elixir_collector": {
+            "w": 3,
+            "h": 3
+        }
+    }
+}

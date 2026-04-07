@@ -56,6 +56,10 @@ class BotMainWindow:
         self.bluestacks = BlueStacksManager()
         self.adb = AdvancedADBManager()
 
+        # Размеры экрана BlueStacks (обновляются при подключении устройства)
+        self._base_screen_w = 1280
+        self._base_screen_h = 720
+
         # Инициализируем логгер сессии
         try:
             import session_logger
@@ -131,14 +135,16 @@ class BotMainWindow:
             "main":     tk.Frame(self.tab_content, bg=THEME["bg_main"]),
             "check":    tk.Frame(self.tab_content, bg=THEME["bg_main"]),
             "bot":      tk.Frame(self.tab_content, bg=THEME["bg_main"]),
+            "base":     tk.Frame(self.tab_content, bg=THEME["bg_main"]),
             "auto":     tk.Frame(self.tab_content, bg=THEME["bg_main"]),
             "settings": tk.Frame(self.tab_content, bg=THEME["bg_main"]),
             "about":    tk.Frame(self.tab_content, bg=THEME["bg_main"]),
+            "dev":      tk.Frame(self.tab_content, bg=THEME["bg_main"]),
         }
 
         # Кнопки вкладок
         self.tab_buttons = {}
-        tabs = [("main", "🏠  ОСНОВНОЕ"), ("check", "🔍  ПРОВЕРКА"), ("bot", "🤖  БОТ"), ("auto", "⚡  АВТО"), ("settings", "⚙️  НАСТРОЙКИ"), ("about", "ℹ️  О ПРОГРАММЕ")]
+        tabs = [("main", "🏠  ОСНОВНОЕ"), ("check", "🔍  ПРОВЕРКА"), ("bot", "🤖  БОТ"), ("base", "🏰  БАЗА"), ("auto", "⚡  АВТО"), ("settings", "⚙️  НАСТРОЙКИ"), ("about", "ℹ️  О ПРОГРАММЕ")]
         for key, label in tabs:
             btn = tk.Button(
                 tab_bar,
@@ -158,20 +164,42 @@ class BotMainWindow:
             btn.pack(side=tk.LEFT)
             self.tab_buttons[key] = btn
 
+        # Кнопка DEV — скрыта по умолчанию
+        dev_btn = tk.Button(
+            tab_bar,
+            text="⚙️  DEV",
+            bg=THEME["bg_panel"],
+            fg=THEME["accent_orange"],
+            font=THEME["font_normal"],
+            relief=tk.FLAT,
+            bd=0,
+            padx=20,
+            pady=10,
+            cursor="hand2",
+            command=lambda: self._switch_tab("dev"),
+            activebackground=THEME["bg_card"],
+            activeforeground=THEME["accent_orange"],
+        )
+        self.tab_buttons["dev"] = dev_btn
+        # Не пакуем — скрыта по умолчанию
+
         create_separator(self.root).pack(fill=tk.X)
 
         # Наполняем вкладки через модули tabs/
         from UI.tabs.tab_main  import build as build_main
         from UI.tabs.tab_check import build as build_check
         from UI.tabs.tab_bot   import build as build_bot
+        from UI.tabs.tab_base_view import build as build_base
         from UI.tabs.tab_about import build as build_about
 
         build_main(self)
         build_check(self)
         build_bot(self)
+        build_base(self)
         self._build_auto_tab()
         self._build_settings_tab()
         build_about(self)
+        self._build_dev_tab()
 
         # Показываем первую вкладку
         self._switch_tab("main")
@@ -181,12 +209,23 @@ class BotMainWindow:
         for k, frame in self.frames.items():
             frame.pack_forget()
         self.frames[key].pack(fill=tk.BOTH, expand=True)
+        self._current_tab = key
+
+        # При открытии DEV вкладки — загружаем актуальные значения
+        if key == "dev" and hasattr(self, "_dev_load_values"):
+            self._dev_load_values()
 
         for k, btn in self.tab_buttons.items():
             if k == key:
-                btn.config(fg=THEME["accent_blue"], bg=THEME["bg_card"])
+                if k == "dev":
+                    btn.config(fg=THEME["accent_orange"], bg=THEME["bg_card"])
+                else:
+                    btn.config(fg=THEME["accent_blue"], bg=THEME["bg_card"])
             else:
-                btn.config(fg=THEME["text_secondary"], bg=THEME["bg_panel"])
+                if k == "dev":
+                    btn.config(fg=THEME["accent_orange"], bg=THEME["bg_panel"])
+                else:
+                    btn.config(fg=THEME["text_secondary"], bg=THEME["bg_panel"])
 
     # ─────────────────────────────────────────────
     # ВКЛАДКА: ОСНОВНОЕ
@@ -1073,6 +1112,42 @@ class BotMainWindow:
 
         create_separator(scroll).pack(fill=tk.X, pady=12)
 
+        # ── Dev Mode ──
+        create_label(scroll, "🛠 Режим разработчика", style="dim", bg=THEME["bg_main"]).pack(anchor="w", pady=(0, 4))
+
+        dev_row = tk.Frame(scroll, bg=THEME["bg_main"])
+        dev_row.pack(fill=tk.X, pady=4)
+
+        self._dev_mode_var = tk.BooleanVar(value=False)
+
+        def _toggle_dev_mode():
+            enabled = self._dev_mode_var.get()
+            if enabled:
+                self.tab_buttons["dev"].pack(side=tk.LEFT)
+            else:
+                self.tab_buttons["dev"].pack_forget()
+                # Если сейчас открыта DEV вкладка — переключаемся на settings
+                if hasattr(self, "_current_tab") and self._current_tab == "dev":
+                    self._switch_tab("settings")
+
+        dev_check = tk.Checkbutton(
+            dev_row,
+            text="Включить Dev Mode (редактирование констант базы)",
+            variable=self._dev_mode_var,
+            command=_toggle_dev_mode,
+            bg=THEME["bg_main"],
+            fg=THEME["accent_orange"],
+            selectcolor=THEME["bg_input"],
+            activebackground=THEME["bg_main"],
+            activeforeground=THEME["accent_orange"],
+            font=THEME["font_normal"],
+            relief=tk.FLAT,
+            cursor="hand2",
+        )
+        dev_check.pack(side=tk.LEFT)
+
+        create_separator(scroll).pack(fill=tk.X, pady=12)
+
         # Кнопка сохранить
         create_button(scroll, "💾  Сохранить настройки",
                       command=self._save_settings, style="start", width=26).pack(anchor="w")
@@ -1103,6 +1178,169 @@ class BotMainWindow:
             self.settings_status.config(text="✅ Настройки сохранены!", fg=THEME["accent_green"])
         except Exception as e:
             self.settings_status.config(text=f"❌ Ошибка: {e}", fg=THEME["accent_red"])
+
+    # ─────────────────────────────────────────────
+    # ВКЛАДКА: DEV MODE
+    # ─────────────────────────────────────────────
+
+    def _build_dev_tab(self):
+        """Строит вкладку DEV с редактором Base_Constants."""
+        import json
+        frame = self.frames["dev"]
+
+        scroll = tk.Frame(frame, bg=THEME["bg_main"])
+        scroll.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+
+        create_label(scroll, "⚙️ Dev Mode — Константы базы", style="header", bg=THEME["bg_main"]).pack(anchor="w", pady=(0, 6))
+        create_label(scroll, "Редактирование base_constants.json. Изменения применяются немедленно.", style="dim", bg=THEME["bg_main"]).pack(anchor="w", pady=(0, 10))
+        create_separator(scroll).pack(fill=tk.X, pady=(0, 14))
+
+        self._dev_entries = {}
+
+        def _make_entry_row(parent, label_text, key_path, default_val):
+            """key_path — кортеж ('section', 'field')"""
+            row = tk.Frame(parent, bg=THEME["bg_main"])
+            row.pack(fill=tk.X, pady=3)
+            create_label(row, label_text, style="normal", bg=THEME["bg_main"], width=30, anchor="w").pack(side=tk.LEFT)
+            var = tk.StringVar(value=str(default_val))
+            entry = tk.Entry(
+                row, textvariable=var,
+                bg=THEME["bg_input"], fg=THEME["accent_blue"],
+                font=THEME["font_normal"], relief=tk.FLAT, width=10,
+                insertbackground=THEME["accent_green"],
+            )
+            entry.pack(side=tk.LEFT, padx=8)
+            self._dev_entries[key_path] = var
+            return var
+
+        # ── Размер базы ──
+        create_label(scroll, "📐 Размер базы (сетка)", style="dim", bg=THEME["bg_main"]).pack(anchor="w", pady=(0, 4))
+        _make_entry_row(scroll, "Ширина сетки (клетки):", ("base", "grid_width_cells"), 44)
+        _make_entry_row(scroll, "Высота сетки (клетки):", ("base", "grid_height_cells"), 44)
+        _make_entry_row(scroll, "Угол правых диагоналей (°):", ("base", "isometric_angle_right"), 27.0)
+        _make_entry_row(scroll, "Угол левых диагоналей (°):", ("base", "isometric_angle_left"), 153.0)
+        _make_entry_row(scroll, "Допуск угла (°):", ("base", "angle_tolerance"), 3.0)
+
+        create_separator(scroll).pack(fill=tk.X, pady=10)
+
+        # ── Зум ──
+        create_label(scroll, "🔍 Зум", style="dim", bg=THEME["bg_main"]).pack(anchor="w", pady=(0, 4))
+        _make_entry_row(scroll, "Шаг pinch (px):", ("zoom", "pinch_step_px"), 150)
+        _make_entry_row(scroll, "Длительность pinch (мс):", ("zoom", "pinch_duration_ms"), 400)
+        _make_entry_row(scroll, "Макс. шагов отдаления:", ("zoom", "max_out_steps"), 5)
+
+        create_separator(scroll).pack(fill=tk.X, pady=10)
+
+        # ── Постройки ──
+        create_label(scroll, "🏗 Размеры построек (клетки)", style="dim", bg=THEME["bg_main"]).pack(anchor="w", pady=(0, 4))
+
+        buildings_frame = tk.Frame(scroll, bg=THEME["bg_main"])
+        buildings_frame.pack(fill=tk.X)
+
+        building_defaults = [
+            ("town_hall",         "Town Hall",         4, 4),
+            ("cannon",            "Cannon",            3, 3),
+            ("archer_tower",      "Archer Tower",      3, 3),
+            ("mortar",            "Mortar",            3, 3),
+            ("tesla",             "Tesla",             2, 2),
+            ("wall",              "Wall",              1, 1),
+            ("gold_mine",         "Gold Mine",         3, 3),
+            ("elixir_collector",  "Elixir Collector",  3, 3),
+        ]
+
+        # Два столбца
+        col_left  = tk.Frame(buildings_frame, bg=THEME["bg_main"])
+        col_right = tk.Frame(buildings_frame, bg=THEME["bg_main"])
+        col_left.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        col_right.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        for i, (bkey, bname, dw, dh) in enumerate(building_defaults):
+            parent_col = col_left if i % 2 == 0 else col_right
+            grp = tk.Frame(parent_col, bg=THEME["bg_main"])
+            grp.pack(fill=tk.X, pady=2)
+            create_label(grp, f"{bname}:", style="dim", bg=THEME["bg_main"], width=18, anchor="w").pack(side=tk.LEFT)
+            create_label(grp, "W:", style="dim", bg=THEME["bg_main"]).pack(side=tk.LEFT)
+            var_w = tk.StringVar(value=str(dw))
+            tk.Entry(grp, textvariable=var_w, bg=THEME["bg_input"], fg=THEME["accent_blue"],
+                     font=THEME["font_normal"], relief=tk.FLAT, width=4,
+                     insertbackground=THEME["accent_green"]).pack(side=tk.LEFT, padx=(2, 6))
+            create_label(grp, "H:", style="dim", bg=THEME["bg_main"]).pack(side=tk.LEFT)
+            var_h = tk.StringVar(value=str(dh))
+            tk.Entry(grp, textvariable=var_h, bg=THEME["bg_input"], fg=THEME["accent_blue"],
+                     font=THEME["font_normal"], relief=tk.FLAT, width=4,
+                     insertbackground=THEME["accent_green"]).pack(side=tk.LEFT, padx=2)
+            self._dev_entries[("buildings", bkey, "w")] = var_w
+            self._dev_entries[("buildings", bkey, "h")] = var_h
+
+        create_separator(scroll).pack(fill=tk.X, pady=12)
+
+        # ── Кнопки ──
+        btn_row = tk.Frame(scroll, bg=THEME["bg_main"])
+        btn_row.pack(anchor="w")
+
+        create_button(btn_row, "💾  Сохранить",
+                      command=self._dev_save, style="start", width=18).pack(side=tk.LEFT, padx=(0, 10))
+        create_button(btn_row, "🔄  Сбросить",
+                      command=self._dev_load_values, width=16).pack(side=tk.LEFT)
+
+        self._dev_status = create_label(scroll, "", style="dim", bg=THEME["bg_main"])
+        self._dev_status.pack(anchor="w", pady=6)
+
+        # Загружаем актуальные значения при построении
+        self._dev_load_values()
+
+    def _dev_load_values(self):
+        """Загружает текущие значения из base_constants.json в поля DEV вкладки."""
+        import json
+        if not hasattr(self, "_dev_entries"):
+            return
+        constants_path = Path(__file__).parent.parent / "CONFIG" / "base_constants.json"
+        try:
+            with open(constants_path, encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            data = {}
+
+        for key_path, var in self._dev_entries.items():
+            try:
+                if len(key_path) == 2:
+                    section, field = key_path
+                    val = data.get(section, {}).get(field, "")
+                else:
+                    # ("buildings", bkey, "w"/"h")
+                    _, bkey, dim = key_path
+                    val = data.get("buildings", {}).get(bkey, {}).get(dim, "")
+                var.set(str(val))
+            except Exception:
+                pass
+
+    def _dev_save(self):
+        """Сохраняет значения из полей DEV в base_constants.json и применяет немедленно."""
+        import json
+        constants_path = Path(__file__).parent.parent / "CONFIG" / "base_constants.json"
+        try:
+            # Читаем текущий файл как основу
+            try:
+                with open(constants_path, encoding="utf-8") as f:
+                    data = json.load(f)
+            except Exception:
+                data = {}
+
+            for key_path, var in self._dev_entries.items():
+                raw = var.get().strip()
+                if len(key_path) == 2:
+                    section, field = key_path
+                    data.setdefault(section, {})[field] = _parse_number(raw)
+                else:
+                    _, bkey, dim = key_path
+                    data.setdefault("buildings", {}).setdefault(bkey, {})[dim] = _parse_number(raw)
+
+            with open(constants_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=4, ensure_ascii=False)
+
+            self._dev_status.config(text="✅ Сохранено и применено!", fg=THEME["accent_green"])
+        except Exception as e:
+            self._dev_status.config(text=f"❌ Ошибка: {e}", fg=THEME["accent_red"])
 
     # ─────────────────────────────────────────────
     # ВКЛАДКА: О ПРОГРАММЕ
@@ -1522,6 +1760,16 @@ class BotMainWindow:
     def _ui_end(self):
         self.check_btn.config(state=tk.NORMAL, fg=THEME["accent_blue"])
         self.progress_bar.config(bg=THEME["accent_blue"])
+
+
+def _parse_number(value: str):
+    """Преобразует строку в int или float. Если не получается — возвращает строку."""
+    try:
+        if "." in value:
+            return float(value)
+        return int(value)
+    except (ValueError, TypeError):
+        return value
 
 
 def main():
