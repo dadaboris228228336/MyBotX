@@ -7,6 +7,23 @@
 
 import subprocess
 import sys
+from pathlib import Path
+
+
+def _get_python() -> str:
+    exe = Path(sys.executable)
+    if exe.name.lower() == "python.exe":
+        return str(exe)
+    for candidate in [exe.parent / "python.exe", exe.parent / "python" / "python.exe"]:
+        if candidate.exists():
+            return str(candidate)
+    for path in [
+        Path(r"C:\Program Files\Python310\python.exe"),
+        Path(r"C:\Program Files (x86)\Python310\python.exe"),
+    ]:
+        if path.exists():
+            return str(path)
+    return "python"
 
 
 class DepProcess04Install:
@@ -40,7 +57,7 @@ class DepProcess04Install:
 
             try:
                 result = subprocess.run(
-                    [sys.executable, "-m", "pip", "install", package],
+                    [_get_python(), "-m", "pip", "install", package],
                     capture_output=True,
                     text=True,
                     timeout=120,

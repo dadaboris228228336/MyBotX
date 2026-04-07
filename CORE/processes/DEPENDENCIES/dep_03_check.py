@@ -8,6 +8,39 @@
 import json
 import subprocess
 import sys
+from pathlib import Path
+
+
+def _get_python() -> str:
+    """
+    Возвращает путь к реальному python.exe.
+    В PyInstaller-сборке sys.executable указывает на MyBotX.exe,
+    поэтому ищем python.exe рядом или в PATH.
+    """
+    # Если запущены как обычный скрипт — sys.executable это python.exe
+    exe = Path(sys.executable)
+    if exe.name.lower() == "python.exe":
+        return str(exe)
+
+    # Запущены из PyInstaller EXE — ищем python.exe рядом с EXE
+    for candidate in [
+        exe.parent / "python.exe",
+        exe.parent / "python" / "python.exe",
+    ]:
+        if candidate.exists():
+            return str(candidate)
+
+    # Ищем в стандартных путях установки Python 3.10
+    for path in [
+        Path(r"C:\Program Files\Python310\python.exe"),
+        Path(r"C:\Program Files (x86)\Python310\python.exe"),
+        Path(r"C:\Users") / Path(sys.executable).parts[2] / r"AppData\Local\Programs\Python\Python310\python.exe",
+    ]:
+        if path.exists():
+            return str(path)
+
+    # Fallback — системный python
+    return "python"
 
 
 class DepProcess03Check:
@@ -29,7 +62,7 @@ class DepProcess03Check:
                 log_callback("🔍 Проверка наших пакетов...")
 
             result = subprocess.run(
-                [sys.executable, "-m", "pip", "list", "--format=json"],
+                [_get_python(), "-m", "pip", "list", "--format=json"],
                 capture_output=True,
                 text=True,
                 timeout=30,

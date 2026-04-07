@@ -12,6 +12,22 @@ from pathlib import Path
 REQ_FILE = Path(__file__).parent.parent.parent / "requirements.txt"
 
 
+def _get_python() -> str:
+    exe = Path(sys.executable)
+    if exe.name.lower() == "python.exe":
+        return str(exe)
+    for candidate in [exe.parent / "python.exe", exe.parent / "python" / "python.exe"]:
+        if candidate.exists():
+            return str(candidate)
+    for path in [
+        Path(r"C:\Program Files\Python310\python.exe"),
+        Path(r"C:\Program Files (x86)\Python310\python.exe"),
+    ]:
+        if path.exists():
+            return str(path)
+    return "python"
+
+
 def check_all() -> tuple[list[str], list[str]]:
     """
     Проверяет все пакеты из requirements.txt.
@@ -30,7 +46,7 @@ def check_all() -> tuple[list[str], list[str]]:
 
         pkg = line.split("==")[0].split(">=")[0].split("<=")[0].strip()
         result = subprocess.run(
-            [sys.executable, "-m", "pip", "show", pkg],
+            [_get_python(), "-m", "pip", "show", pkg],
             capture_output=True, text=True,
             creationflags=subprocess.CREATE_NO_WINDOW
         )
