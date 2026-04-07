@@ -1,5 +1,7 @@
-# Установщики (слишком большие для GitHub)
+# Установщики и скачанные файлы (слишком большие для GitHub)
 BOT_APPLICATIONS/*.exe
+BOT_APPLICATIONS/*.zip
+BOT_APPLICATIONS/platform-tools/
 BOT_APPLICATIONS/wheels/
 
 # Python
@@ -19,6 +21,7 @@ TESTS/TESTS/
 
 # Временные файлы
 CORE/temp/
+my_bot/
 *.log
 *.tmp
 
