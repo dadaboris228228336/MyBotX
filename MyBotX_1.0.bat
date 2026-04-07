@@ -166,12 +166,6 @@ if "!MISSING!"=="1" (
         echo.
         start "" "https://www.python.org/ftp/python/3.10.11/python-3.10.11-amd64.exe"
     )
-    if defined MISS_ADB (
-        echo  - ADB (Android Platform Tools)
-        echo    https://dl.google.com/android/repository/platform-tools-latest-windows.zip
-        echo.
-        start "" "https://dl.google.com/android/repository/platform-tools-latest-windows.zip"
-    )
     if defined MISS_BS (
         echo  - BlueStacks 5
         echo    https://cdn3.bluestacks.com/public/BlueStacksInstaller_5.exe
