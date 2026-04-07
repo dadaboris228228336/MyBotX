@@ -144,5 +144,6 @@
   "bot_settings": {
     "threshold": 0.8,
     "action_delay": 1.0
-  }
+  },
+  "dev_mode": true
 }
