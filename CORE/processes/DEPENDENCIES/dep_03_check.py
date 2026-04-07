@@ -33,7 +33,8 @@ class DepProcess03Check:
                 capture_output=True,
                 text=True,
                 timeout=30,
-                check=True
+                check=True,
+                creationflags=subprocess.CREATE_NO_WINDOW
             )
 
             packages_info = json.loads(result.stdout)

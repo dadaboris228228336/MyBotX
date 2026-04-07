@@ -44,7 +44,8 @@ class DepProcess04Install:
                     capture_output=True,
                     text=True,
                     timeout=120,
-                    check=True
+                    check=True,
+                    creationflags=subprocess.CREATE_NO_WINDOW
                 )
 
                 if log_callback:

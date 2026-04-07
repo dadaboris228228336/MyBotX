@@ -31,7 +31,8 @@ def check_all() -> tuple[list[str], list[str]]:
         pkg = line.split("==")[0].split(">=")[0].split("<=")[0].strip()
         result = subprocess.run(
             [sys.executable, "-m", "pip", "show", pkg],
-            capture_output=True, text=True
+            capture_output=True, text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW
         )
         if result.returncode == 0:
             ver = ""
