@@ -22,6 +22,10 @@ set "TOOLS_DIR=%BOT_DIR%\platform-tools"
 set "PYTHON_VER=3.10.11"
 set "PYTHON_EXE="
 set "LAPPDATA=%LOCALAPPDATA%"
+set "MISSING=0"
+set "MISS_PYTHON="
+set "MISS_ADB="
+set "MISS_BS="
 
 if not exist "%BOT_DIR%" mkdir "%BOT_DIR%"
 
@@ -35,8 +39,6 @@ echo ========================================================
 echo   Checking required components...
 echo ========================================================
 echo.
-
-set "MISSING=0"
 
 REM --- Python ---
 echo [1/3] Checking Python %PYTHON_VER%...
