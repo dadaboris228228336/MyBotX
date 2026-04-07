@@ -7,6 +7,35 @@
 
 import subprocess
 import sys
+from pathlib import Path
+
+
+def _get_python() -> str:
+    exe = Path(sys.executable)
+    if exe.name.lower() == "python.exe":
+        return str(exe)
+    try:
+        result = subprocess.run(
+            ["where", "python"], capture_output=True, text=True, timeout=5,
+            creationflags=subprocess.CREATE_NO_WINDOW
+        )
+        if result.returncode == 0:
+            for line in result.stdout.strip().splitlines():
+                p = Path(line.strip())
+                if p.exists() and p.name.lower() == "python.exe":
+                    return str(p)
+    except Exception:
+        pass
+    for p in [
+        Path(r"C:\Program Files\Python310\python.exe"),
+        Path(r"C:\Program Files (x86)\Python310\python.exe"),
+        Path.home() / r"AppData\Local\Programs\Python\Python310\python.exe",
+        Path.home() / r"AppData\Local\Programs\Python\Python311\python.exe",
+        Path.home() / r"AppData\Local\Programs\Python\Python312\python.exe",
+    ]:
+        if p.exists():
+            return str(p)
+    return "python"
 
 
 class DepProcess04Install:
@@ -40,11 +69,12 @@ class DepProcess04Install:
 
             try:
                 result = subprocess.run(
-                    [sys.executable, "-m", "pip", "install", package],
+                    [_get_python(), "-m", "pip", "install", package],
                     capture_output=True,
                     text=True,
                     timeout=120,
-                    check=True
+                    check=True,
+                    creationflags=subprocess.CREATE_NO_WINDOW
                 )
 
                 if log_callback:

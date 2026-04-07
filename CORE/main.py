@@ -1167,51 +1167,68 @@ class BotMainWindow:
 
             # Получаем установленные пакеты с версиями
             import json
-            result = subprocess.run(
-                [sys.executable, "-m", "pip", "list", "--format=json"],
-                capture_output=True, text=True, timeout=30
-            )
-            installed_map = {}  # {name: version}
-            if result.returncode == 0:
-                for pkg in json.loads(result.stdout):
-                    installed_map[pkg["name"].lower()] = pkg["version"]
+            import sys as _sys
 
-            # Проверяем каждый пакет из requirements.txt
-            missing = []
-            for pkg_name, req_ver in required.items():
-                if pkg_name in installed_map:
-                    inst_ver = installed_map[pkg_name]
-                    if req_ver and inst_ver != req_ver:
-                        self._log(f"  ⚠️ {pkg_name} — установлен {inst_ver}, нужен {req_ver}", "warning")
-                        missing.append(pkg_name)
-                    else:
-                        self._log(f"  ✅ {pkg_name}=={inst_ver}", "success")
-                else:
-                    self._log(f"  ❌ {pkg_name} — не установлен", "error")
-                    missing.append(pkg_name)
-
-            self._log("", "dim")
-            if missing:
-                self._log(f"❌ Не установлено: {len(missing)} пакетов", "error")
-            else:
-                self._log("✅ Все пакеты установлены!", "success")
-
-            # Сохраняем для кнопки установки
-            self.checker = type("Checker", (), {
-                "missing_packages": missing,
-                "installed_packages": [p for p in required if p not in missing],
-                "required_packages": list(required.keys()),
-            })()
-
-            inst_count = len(required) - len(missing)
-            self.root.after(0, lambda: self.status_labels["packages"].config(
-                text=f"✅ {inst_count}/{len(required)} установлено",
-                fg=THEME["accent_green"] if not missing else THEME["accent_red"]
-            ))
-            if missing:
-                self.root.after(0, lambda: self.install_btn.config(
-                    state=tk.NORMAL, fg=THEME["accent_blue"]
+            # Если запущено из PyInstaller EXE — все пакеты встроены
+            if getattr(_sys, 'frozen', False):
+                self._log("✅ Запущено из EXE — все пакеты встроены", "success")
+                for pkg_name, req_ver in required.items():
+                    self._log(f"  ✅ {pkg_name} (встроен)", "success")
+                self.checker = type("Checker", (), {
+                    "missing_packages": [],
+                    "installed_packages": list(required.keys()),
+                    "required_packages": list(required.keys()),
+                })()
+                inst_count = len(required)
+                self.root.after(0, lambda: self.status_labels["packages"].config(
+                    text=f"✅ {inst_count}/{inst_count} встроено",
+                    fg=THEME["accent_green"]
                 ))
+            else:
+                result = subprocess.run(
+                    [sys.executable, "-m", "pip", "list", "--format=json"],
+                    capture_output=True, text=True, timeout=30,
+                    creationflags=subprocess.CREATE_NO_WINDOW
+                )
+                installed_map = {}
+                if result.returncode == 0:
+                    for pkg in json.loads(result.stdout):
+                        installed_map[pkg["name"].lower()] = pkg["version"]
+
+                missing = []
+                for pkg_name, req_ver in required.items():
+                    if pkg_name in installed_map:
+                        inst_ver = installed_map[pkg_name]
+                        if req_ver and inst_ver != req_ver:
+                            self._log(f"  ⚠️ {pkg_name} — установлен {inst_ver}, нужен {req_ver}", "warning")
+                            missing.append(pkg_name)
+                        else:
+                            self._log(f"  ✅ {pkg_name}=={inst_ver}", "success")
+                    else:
+                        self._log(f"  ❌ {pkg_name} — не установлен", "error")
+                        missing.append(pkg_name)
+
+                self._log("", "dim")
+                if missing:
+                    self._log(f"❌ Не установлено: {len(missing)} пакетов", "error")
+                else:
+                    self._log("✅ Все пакеты установлены!", "success")
+
+                self.checker = type("Checker", (), {
+                    "missing_packages": missing,
+                    "installed_packages": [p for p in required if p not in missing],
+                    "required_packages": list(required.keys()),
+                })()
+
+                inst_count = len(required) - len(missing)
+                self.root.after(0, lambda: self.status_labels["packages"].config(
+                    text=f"✅ {inst_count}/{len(required)} установлено",
+                    fg=THEME["accent_green"] if not missing else THEME["accent_red"]
+                ))
+                if missing:
+                    self.root.after(0, lambda: self.install_btn.config(
+                        state=tk.NORMAL, fg=THEME["accent_blue"]
+                    ))
 
             self._log("", "dim")
             self._log("🔍 ПОИСК BLUESTACKS", "info")
@@ -1284,7 +1301,8 @@ class BotMainWindow:
             for pkg in packages:
                 result = subprocess.run(
                     ["pip", "uninstall", pkg, "-y"],
-                    capture_output=True, text=True
+                    capture_output=True, text=True,
+                    creationflags=subprocess.CREATE_NO_WINDOW
                 )
                 if result.returncode == 0:
                     self._log(f"✅ {pkg} удалён", "success")

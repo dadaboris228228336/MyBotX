@@ -59,7 +59,8 @@ class GameProcess06LaunchMonkey:
                 capture_output=True,
                 text=True,
                 timeout=15,
-                check=False
+                check=False,
+                creationflags=subprocess.CREATE_NO_WINDOW
             )
 
             if (result.returncode == 0 and
