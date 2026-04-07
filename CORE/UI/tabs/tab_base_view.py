@@ -13,6 +13,13 @@ def build(app):
     """Строит вкладку БАЗА. app = BotMainWindow."""
     frame = app.frames["base"]
 
+    # Сначала привязываем методы к app, потом создаём кнопки
+    app._base_log          = _make_base_log(app)
+    app._base_screenshot   = _make_base_screenshot(app)
+    app._base_zoom_in      = _make_base_zoom_in(app)
+    app._base_zoom_out     = _make_base_zoom_out(app)
+    app._base_find_center  = _make_base_find_center(app)
+
     # Верхняя панель: кнопки управления
     top_row = tk.Frame(frame, bg=THEME["bg_main"])
     top_row.pack(fill=tk.X, pady=(0, 4))
@@ -75,19 +82,6 @@ def build(app):
         ("dim",     THEME["text_secondary"]),
     ]:
         app.base_log.tag_config(tag, foreground=color)
-
-    # Привязываем методы к app
-    app._base_screenshot   = _make_base_screenshot(app)
-    app._base_zoom_in      = _make_base_zoom_in(app)
-    app._base_zoom_out     = _make_base_zoom_out(app)
-    app._base_find_center  = _make_base_find_center(app)
-    app._base_log          = _make_base_log(app)
-
-    # Обновляем команды кнопок на только что созданные методы
-    app._base_btn_screenshot.config(command=app._base_screenshot)
-    app._base_btn_zoom_in.config(command=app._base_zoom_in)
-    app._base_btn_zoom_out.config(command=app._base_zoom_out)
-    app._base_btn_find_center.config(command=app._base_find_center)
 
 
 # ---------------------------------------------------------------------------
