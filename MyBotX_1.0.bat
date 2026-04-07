@@ -39,11 +39,10 @@ echo.
 set "MISSING=0"
 
 REM ─────────────────────────────────────────────────────────
-REM  Python: ищем по всем возможным путям, минуя Store-заглушку
+REM  Python
 REM ─────────────────────────────────────────────────────────
 echo [1/3] Проверка Python %PYTHON_VER%...
 
-REM 1. Стандартные пути установки "только для текущего пользователя"
 for %%V in (313 312 311 310 39 38) do (
     if exist "!LAPPDATA!\Programs\Python\Python%%V\python.exe" (
         call :check_python "!LAPPDATA!\Programs\Python\Python%%V\python.exe"
@@ -51,7 +50,6 @@ for %%V in (313 312 311 310 39 38) do (
     )
 )
 
-REM 2. Системные пути (InstallAllUsers=1)
 for %%V in (313 312 311 310 39 38) do (
     if exist "C:\Program Files\Python%%V\python.exe" (
         call :check_python "C:\Program Files\Python%%V\python.exe"
@@ -67,7 +65,6 @@ for %%V in (313 312 311 310 39 38) do (
     )
 )
 
-REM 3. Реестр — HKCU (установка для пользователя)
 for /f "tokens=2*" %%a in ('reg query "HKCU\Software\Python\PythonCore" /s /v "ExecutablePath" 2^>nul') do (
     if exist "%%b" (
         echo "%%b" | findstr /i "WindowsApps" >nul 2>&1
@@ -78,7 +75,6 @@ for /f "tokens=2*" %%a in ('reg query "HKCU\Software\Python\PythonCore" /s /v "E
     )
 )
 
-REM 4. Реестр — HKLM (системная установка)
 for /f "tokens=2*" %%a in ('reg query "HKLM\Software\Python\PythonCore" /s /v "ExecutablePath" 2^>nul') do (
     if exist "%%b" (
         echo "%%b" | findstr /i "WindowsApps" >nul 2>&1
@@ -89,7 +85,6 @@ for /f "tokens=2*" %%a in ('reg query "HKLM\Software\Python\PythonCore" /s /v "E
     )
 )
 
-REM 5. where python — последний шанс, пропускаем WindowsApps
 for /f "delims=" %%p in ('where python 2^>nul') do (
     echo "%%p" | findstr /i "WindowsApps" >nul 2>&1
     if errorlevel 1 (
@@ -196,8 +191,11 @@ if "!MISSING!"=="1" (
         echo.
         start "" "https://www.bluestacks.com/download.html"
     )
+    echo.
     echo  Установите компоненты и запустите MyBotX снова.
-    pause
+    echo.
+    echo  Это окно закроется через 60 секунд...
+    timeout /t 60
     exit /b 1
 )
 
@@ -218,19 +216,17 @@ if not errorlevel 1 (
 
 echo  Устанавливаем пакеты...
 
-REM Восстанавливаем pip если отсутствует
 "!PYTHON_EXE!" -m pip --version >nul 2>&1
 if errorlevel 1 (
     echo  pip не найден, восстанавливаем...
     "!PYTHON_EXE!" -m ensurepip --upgrade >nul 2>&1
     if errorlevel 1 (
-        REM ensurepip не сработал — пробуем get-pip.py
         echo  Скачиваем get-pip.py...
         powershell -Command "& { $ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri 'https://bootstrap.pypa.io/get-pip.py' -OutFile '%TEMP%\get-pip.py' }" >nul 2>&1
         "!PYTHON_EXE!" "%TEMP%\get-pip.py" --quiet
         if errorlevel 1 (
             echo  [ERR] Не удалось установить pip. Переустановите Python с галочкой pip.
-            pause
+            timeout /t 30
             exit /b 1
         )
     )
@@ -240,11 +236,10 @@ if errorlevel 1 (
 "!PYTHON_EXE!" -m pip install -r "%ROOT_DIR%CORE\requirements.txt"
 if errorlevel 1 (
     echo  [ERR] Ошибка установки пакетов!
-    pause
+    timeout /t 30
     exit /b 1
 )
 
-REM pywin32 требует post-install шаг
 "!PYTHON_EXE!" -c "import win32gui" >nul 2>&1
 if errorlevel 1 (
     echo  Настройка pywin32...
@@ -266,7 +261,7 @@ echo.
 
 if not exist "%ROOT_DIR%CORE\main.py" (
     echo  [ERR] Файл CORE\main.py не найден!
-    pause
+    timeout /t 30
     exit /b 1
 )
 
@@ -276,9 +271,7 @@ timeout /t 2 /nobreak >nul
 exit /b 0
 
 REM ══════════════════════════════════════════════════════════
-REM  ПОДПРОГРАММА: проверка конкретного python.exe
-REM  Вход:  %1 — путь к python.exe
-REM  Выход: PYTHON_EXE, PY_VER устанавливаются если версия >= 3.10
+REM  ПОДПРОГРАММА: проверка python.exe
 REM ══════════════════════════════════════════════════════════
 :check_python
 set "_PY_TMP="
@@ -289,7 +282,7 @@ for /f "tokens=1,2 delims=." %%a in ("!_PY_TMP!") do (
     if %%a GEQ 3 if %%b GEQ 10 (
         set "PYTHON_EXE=%~1"
         set "PY_VER=!_PY_TMP!"
-        echo  [OK] Python !_PY_TMP! — !PYTHON_EXE!
+        echo  [OK] Python !_PY_TMP!
     ) else (
         echo  [X] Python !_PY_TMP! — версия ниже 3.10, пропускаем
     )
