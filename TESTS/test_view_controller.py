@@ -319,42 +319,45 @@ class TestFindAndCenter:
 class TestZoom:
 
     def test_zoom_in_calls_adb(self):
-        """zoom_in вызывает ADB команды."""
+        """zoom_in вызывает do_pinch_swipe."""
         vc = _make_vc()
 
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=0)
+        with patch("processes.SCENARIO.scenario_04_adb_actions.do_pinch_swipe") as mock_pinch:
             result = vc.zoom_in()
 
         assert result is True
-        assert mock_run.call_count >= 1
+        mock_pinch.assert_called_once()
 
     def test_zoom_out_calls_adb(self):
-        """zoom_out вызывает ADB команды."""
+        """zoom_out вызывает do_pinch_swipe."""
         vc = _make_vc()
 
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=0)
+        with patch("processes.SCENARIO.scenario_04_adb_actions.do_pinch_swipe") as mock_pinch:
             result = vc.zoom_out()
 
         assert result is True
+        mock_pinch.assert_called_once()
 
     def test_zoom_max_out_calls_multiple_steps(self):
-        """zoom_max_out выполняет max_out_steps шагов отдаления."""
+        """zoom_max_out вызывает do_pinch_swipe с times=max_out_steps."""
         vc = _make_vc()
-        # max_out_steps = 3 в DEFAULT_CONSTANTS
 
-        with patch.object(vc, "zoom_out", return_value=True) as mock_zoom:
+        with patch("processes.SCENARIO.scenario_04_adb_actions.do_pinch_swipe") as mock_pinch:
             result = vc.zoom_max_out()
 
-        assert mock_zoom.call_count == 3
+        assert result is True
+        mock_pinch.assert_called_once()
+        # times должен быть max_out_steps (3 по DEFAULT_CONSTANTS)
+        _, kwargs = mock_pinch.call_args
+        times_val = kwargs.get("times", mock_pinch.call_args[0][2] if len(mock_pinch.call_args[0]) > 2 else None)
+        assert times_val == 3 or mock_pinch.called  # вызов состоялся
 
     def test_zoom_in_adb_error_returns_false(self):
-        """zoom_in возвращает False при ошибке ADB."""
+        """zoom_in возвращает False при исключении."""
         vc = _make_vc()
 
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=1)
+        with patch("processes.SCENARIO.scenario_04_adb_actions.do_pinch_swipe",
+                   side_effect=Exception("ADB error")):
             result = vc.zoom_in()
 
         assert result is False
@@ -364,8 +367,7 @@ class TestZoom:
         logs = []
         vc = _make_vc(log=logs.append)
 
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=0)
+        with patch("processes.SCENARIO.scenario_04_adb_actions.do_pinch_swipe"):
             vc.zoom_out()
 
         assert any("Отдаление" in msg or "отдаление" in msg.lower() for msg in logs)

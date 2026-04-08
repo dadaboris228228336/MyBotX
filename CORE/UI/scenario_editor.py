@@ -27,6 +27,12 @@ except ImportError:
         step_label, ScenarioStorage, ScenarioRunner
     )
 
+# GAP Req 6.1 / 6.2: The requirement says ScenarioEditor SHALL directly import
+# BotActions (from CORE/processes/BOT/bot_04_actions.py) and BotTap
+# (from CORE/processes/BOT/bot_03_tap.py). In the actual implementation these
+# are used indirectly via scenario_04_adb_actions.py (do_find_and_tap, do_tap,
+# do_swipe). The imports are absent here and in tab_bot.py.
+
 PATTERNS_DIR = Path(__file__).parent.parent / "processes" / "BOT" / "patterns"
 
 
@@ -174,6 +180,9 @@ class StepDialog(tk.Toplevel):
                 else:
                     p[key] = val
         except ValueError as e:
+            # GAP Req 2.8: validation errors shown via messagebox popup instead of BotLog.
+            # Requirement says errors should be logged to BotLog (log_callback) with tag "error".
+            # Note: StepDialog has no reference to log_callback; it would need to be passed in.
             mb.showerror("Ошибка", f"Неверное значение: {e}", parent=self)
             return
         self.result = {"type": t, "params": p}
@@ -327,6 +336,8 @@ class ScenarioEditor(tk.Frame):
     def _move_up(self):
         i = self._get_selected()
         if i is None or i == 0:
+            # GAP Req 3.4: when no step is selected (i is None), no warning is logged to BotLog.
+            # Requirement says a warning should be logged when no step is selected.
             return
         self._steps[i-1], self._steps[i] = self._steps[i], self._steps[i-1]
         self._refresh_listbox()
@@ -335,6 +346,8 @@ class ScenarioEditor(tk.Frame):
     def _move_down(self):
         i = self._get_selected()
         if i is None or i >= len(self._steps) - 1:
+            # GAP Req 3.4: when no step is selected (i is None), no warning is logged to BotLog.
+            # Requirement says a warning should be logged when no step is selected.
             return
         self._steps[i], self._steps[i+1] = self._steps[i+1], self._steps[i]
         self._refresh_listbox()
@@ -349,6 +362,8 @@ class ScenarioEditor(tk.Frame):
     def _refresh_listbox(self):
         self._listbox.delete(0, tk.END)
         if not self._steps:
+            # GAP Req 1.3: placeholder text differs from spec ("Нет шагов. Добавьте первый шаг.")
+            # Functionally equivalent but wording does not match the requirement exactly.
             self._listbox.insert(tk.END, "  (нет шагов — нажмите '＋ Добавить шаг')")
             return
         for i, s in enumerate(self._steps, 1):
@@ -406,6 +421,10 @@ class ScenarioEditor(tk.Frame):
     def _on_scenario_change(self):
         name = self._scenario_var.get()
         if name:
+            # GAP Req 4.3 / 4.4: ScenarioStorage.load() silently returns [] on missing file
+            # or invalid JSON. The requirement says BotLog should receive specific messages:
+            # "Файл сценария не найден" (missing) or an error message (bad JSON).
+            # Currently no feedback is given to the user via log_callback.
             self._steps = ScenarioStorage.load(name)
             self._refresh_listbox()
 
@@ -460,7 +479,11 @@ class ScenarioEditor(tk.Frame):
             self.log("⚠ Сценарий пуст", "warning")
             return
 
-        # Если устройство не подключено — сначала запускаем СТАРТ
+        # GAP Req 5.9: when device is not connected, the requirement says log
+        # "❌ Устройство не подключено" and do NOT start execution.
+        # Instead, the current implementation auto-triggers the START flow and
+        # waits up to 30 seconds for a connection — which is a UX improvement
+        # but diverges from the specified behaviour.
         if not self._is_connected():
             self.log("🔌 Устройство не подключено — запускаем СТАРТ...", "info")
             if self._start_cb:

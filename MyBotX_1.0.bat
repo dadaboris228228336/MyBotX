@@ -24,9 +24,18 @@ set "MISS_BS="
 
 if not exist "%BOT_DIR%" mkdir "%BOT_DIR%"
 
-echo Closing previous MyBotX instances...
-taskkill /IM "python.exe" /F >nul 2>&1
-taskkill /IM "pythonw.exe" /F >nul 2>&1
+echo Closing previous MyBotX instance (if any)...
+set "PID_FILE=%ROOT_DIR%CORE\temp\mybotx.pid"
+if exist "!PID_FILE!" (
+    set /p OLD_PID=<"!PID_FILE!"
+    if defined OLD_PID (
+        tasklist /FI "PID eq !OLD_PID!" 2>nul | find "!OLD_PID!" >nul 2>&1
+        if not errorlevel 1 (
+            taskkill /PID !OLD_PID! /F >nul 2>&1
+        )
+        del "!PID_FILE!" >nul 2>&1
+    )
+)
 timeout /t 1 /nobreak >nul
 
 echo.

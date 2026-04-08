@@ -4,6 +4,7 @@
 🖥️ MyBotX GUI v3.0.0 - Геймерский интерфейс
 """
 
+import os
 import sys
 import time
 import tkinter as tk
@@ -68,8 +69,10 @@ class BotMainWindow:
         except Exception:
             self._session_logger = None
 
-        # Удаляем PID файл при закрытии пользователем (без выключения BS)
+        # Записываем PID текущего процесса (R1: Smart Launcher PID)
         self._pid_file = Path(__file__).parent / "temp" / "mybotx.pid"
+        self._pid_file.parent.mkdir(parents=True, exist_ok=True)
+        self._pid_file.write_text(str(os.getpid()), encoding="utf-8")
         self.root.protocol("WM_DELETE_WINDOW", self._on_close_user)
 
         # Мониторинг BlueStacks — проверяем каждые 10 сек
@@ -672,6 +675,237 @@ class BotMainWindow:
         create_button(btn_row, "✖ Отмена",
                       win.destroy, width=12).pack(side=tk.LEFT, padx=8)
 
+    # ─────────────────────────────────────────────
+    # DEV TAB — Pattern Editor
+    # ─────────────────────────────────────────────
+
+    def _dev_screenshot(self):
+        """Сделать скриншот из Dev Tab и показать превью."""
+        if not self.adb.connected_device:
+            self._dev_log("❌ Устройство не подключено", "error")
+            return
+        threading.Thread(target=self._dev_screenshot_thread, daemon=True).start()
+
+    def _dev_screenshot_thread(self):
+        try:
+            from processes.BOT.bot_01_screenshot import BotScreenshot
+            from PIL import Image, ImageTk
+
+            self._dev_log("📸 Делаем скриншот...", "info")
+            ss = BotScreenshot(self.adb.connected_device, self._dev_log)
+            arr = ss.capture()
+
+            if arr is None:
+                self._dev_log("❌ Скриншот не получен", "error")
+                return
+
+            img = Image.fromarray(arr[:, :, ::-1])
+            img.thumbnail((600, 190))
+            photo = ImageTk.PhotoImage(img)
+
+            self._dev_last_screenshot_orig = Image.fromarray(arr[:, :, ::-1])
+
+            def _update():
+                self.dev_preview_label.config(image=photo, text="")
+                self.dev_preview_label.image = photo
+            self.root.after(0, _update)
+            self._dev_log("✅ Скриншот готов. Можно вырезать паттерн.", "success")
+
+        except Exception as e:
+            self._dev_log(f"❌ Ошибка: {e}", "error")
+
+    def _dev_log(self, msg, tag="info"):
+        """Пишет сообщение в dev_log_text (thread-safe через root.after)."""
+        if not hasattr(self, "dev_log_text"):
+            return
+        def _write():
+            try:
+                self.dev_log_text.config(state=tk.NORMAL)
+                self.dev_log_text.insert(tk.END, msg + "\n")
+                self.dev_log_text.see(tk.END)
+                self.dev_log_text.config(state=tk.DISABLED)
+            except Exception:
+                pass
+        self.root.after(0, _write)
+
+    def _refresh_dev_pattern_dropdowns(self):
+        """Обновляет OptionMenu паттернов в шагах запуска Dev Tab."""
+        from pathlib import Path as _Path
+        patterns_dir = _Path(__file__).parent / "processes" / "BOT" / "patterns"
+        choices = ["(нет)"] + [f.stem for f in sorted(patterns_dir.glob("*.png"))]
+        for pat_var, _, pat_menu in getattr(self, "_dev_startup_steps", []):
+            try:
+                current = pat_var.get()
+                if current not in choices:
+                    pat_var.set("(нет)")
+                # Rebuild the dropdown items via the internal tk Menu
+                menu = pat_menu["menu"]
+                menu.delete(0, "end")
+                for choice in choices:
+                    menu.add_command(label=choice,
+                                     command=lambda v=choice, var=pat_var: var.set(v))
+            except Exception:
+                pass
+
+    def _dev_crop_pattern(self):
+        """Открыть диалог вырезки паттерна из Dev Tab."""
+        if not self._dev_last_screenshot_orig:
+            tk.messagebox.showwarning(
+                "Нет скриншота",
+                "⚠ Сначала нажмите кнопку 'Скриншот'!",
+                parent=self.root
+            )
+            return
+        self.root.after(0, self._dev_crop_window)
+
+    def _dev_crop_window(self):
+        """Окно вырезки паттерна для Dev Tab."""
+        import tkinter.messagebox
+        from PIL import ImageTk
+
+        win = tk.Toplevel(self.root)
+        win.title("Вырезать паттерн (Dev)")
+        win.configure(bg=THEME["bg_main"])
+        win.resizable(False, False)
+
+        create_label(win,
+                     "Нарисуйте прямоугольник на скриншоте. Можно перетащить или изменить размер.",
+                     style="dim", bg=THEME["bg_main"]).pack(pady=(6, 2))
+
+        orig = self._dev_last_screenshot_orig.copy()
+        display = orig.copy()
+        display.thumbnail((900, 500))
+        photo = ImageTk.PhotoImage(display)
+
+        scale_x = orig.width  / display.width
+        scale_y = orig.height / display.height
+
+        canvas = tk.Canvas(win, width=display.width, height=display.height,
+                           bg=THEME["bg_main"], cursor="crosshair")
+        canvas.pack(padx=8)
+        canvas.create_image(0, 0, anchor="nw", image=photo)
+        canvas.image = photo
+
+        rect = {"id": None, "x1": 50, "y1": 50, "x2": 200, "y2": 150}
+        drag = {"mode": None, "ox": 0, "oy": 0, "rx1": 0, "ry1": 0, "rx2": 0, "ry2": 0}
+        HANDLE = 10
+
+        def draw_rect():
+            if rect["id"]:
+                canvas.delete(rect["id"])
+            rect["id"] = canvas.create_rectangle(
+                rect["x1"], rect["y1"], rect["x2"], rect["y2"],
+                outline=THEME["accent_green"], width=2, dash=(4, 2)
+            )
+
+        draw_rect()
+
+        def get_mode(ex, ey):
+            x1, y1, x2, y2 = rect["x1"], rect["y1"], rect["x2"], rect["y2"]
+            near_l = abs(ex - x1) < HANDLE
+            near_r = abs(ex - x2) < HANDLE
+            near_t = abs(ey - y1) < HANDLE
+            near_b = abs(ey - y2) < HANDLE
+            inside = x1 < ex < x2 and y1 < ey < y2
+            if near_l and near_t: return "resize_tl"
+            if near_r and near_t: return "resize_tr"
+            if near_l and near_b: return "resize_bl"
+            if near_r and near_b: return "resize_br"
+            if near_l: return "resize_l"
+            if near_r: return "resize_r"
+            if near_t: return "resize_t"
+            if near_b: return "resize_b"
+            if inside:  return "move"
+            return "draw"
+
+        def update_cursor(ex, ey):
+            m = get_mode(ex, ey)
+            cursors = {
+                "move": "fleur",
+                "resize_tl": "top_left_corner", "resize_tr": "top_right_corner",
+                "resize_bl": "bottom_left_corner", "resize_br": "bottom_right_corner",
+                "resize_l": "left_side", "resize_r": "right_side",
+                "resize_t": "top_side", "resize_b": "bottom_side",
+                "draw": "crosshair",
+            }
+            canvas.config(cursor=cursors.get(m, "crosshair"))
+
+        def on_motion(e): update_cursor(e.x, e.y)
+
+        def on_press(e):
+            drag["mode"] = get_mode(e.x, e.y)
+            drag["ox"], drag["oy"] = e.x, e.y
+            drag["rx1"], drag["ry1"] = rect["x1"], rect["y1"]
+            drag["rx2"], drag["ry2"] = rect["x2"], rect["y2"]
+
+        def on_drag(e):
+            dx, dy = e.x - drag["ox"], e.y - drag["oy"]
+            m = drag["mode"]
+            x1, y1, x2, y2 = drag["rx1"], drag["ry1"], drag["rx2"], drag["ry2"]
+            if m == "draw":
+                rect["x1"], rect["y1"] = drag["ox"], drag["oy"]
+                rect["x2"], rect["y2"] = e.x, e.y
+            elif m == "move":
+                rect["x1"], rect["y1"] = x1 + dx, y1 + dy
+                rect["x2"], rect["y2"] = x2 + dx, y2 + dy
+            elif m == "resize_l":  rect["x1"] = x1 + dx
+            elif m == "resize_r":  rect["x2"] = x2 + dx
+            elif m == "resize_t":  rect["y1"] = y1 + dy
+            elif m == "resize_b":  rect["y2"] = y2 + dy
+            elif m == "resize_tl": rect["x1"], rect["y1"] = x1+dx, y1+dy
+            elif m == "resize_tr": rect["x2"], rect["y1"] = x2+dx, y1+dy
+            elif m == "resize_bl": rect["x1"], rect["y2"] = x1+dx, y2+dy
+            elif m == "resize_br": rect["x2"], rect["y2"] = x2+dx, y2+dy
+            draw_rect()
+
+        canvas.bind("<Motion>",        on_motion)
+        canvas.bind("<ButtonPress-1>", on_press)
+        canvas.bind("<B1-Motion>",     on_drag)
+
+        bottom = tk.Frame(win, bg=THEME["bg_panel"], padx=12, pady=10)
+        bottom.pack(fill=tk.X, padx=8, pady=6)
+
+        row1 = tk.Frame(bottom, bg=THEME["bg_panel"])
+        row1.pack(fill=tk.X, pady=2)
+        create_label(row1, "Имя паттерна:", style="dim", bg=THEME["bg_panel"]).pack(side=tk.LEFT)
+        name_var = tk.StringVar(value="pattern_1")
+        tk.Entry(row1, textvariable=name_var, width=22,
+                 bg=THEME["bg_input"], fg=THEME["accent_blue"],
+                 font=THEME["font_normal"], relief=tk.FLAT,
+                 insertbackground=THEME["accent_green"]).pack(side=tk.LEFT, padx=8)
+
+        btn_row2 = tk.Frame(bottom, bg=THEME["bg_panel"])
+        btn_row2.pack(fill=tk.X, pady=(8, 0))
+
+        def on_save():
+            name = name_var.get().strip().replace(" ", "_")
+            if not name:
+                tk.messagebox.showwarning("Ошибка", "Введите имя паттерна", parent=win)
+                return
+
+            x1 = min(rect["x1"], rect["x2"])
+            y1 = min(rect["y1"], rect["y2"])
+            x2 = max(rect["x1"], rect["x2"])
+            y2 = max(rect["y1"], rect["y2"])
+
+            if x2 - x1 < 5 or y2 - y1 < 5:
+                tk.messagebox.showwarning("Ошибка", "Выделите область на скриншоте", parent=win)
+                return
+
+            rx1, ry1 = int(x1 * scale_x), int(y1 * scale_y)
+            rx2, ry2 = int(x2 * scale_x), int(y2 * scale_y)
+
+            cropped   = orig.crop((rx1, ry1, rx2, ry2))
+            save_path = (Path(__file__).parent / "processes" / "BOT" / "patterns"
+                         / f"{name}.png")
+            cropped.save(save_path)
+            self._dev_log(f"✅ Паттерн сохранён: {name}.png ({rx2-rx1}x{ry2-ry1}px)", "success")
+            win.destroy()
+            self._refresh_dev_pattern_dropdowns()
+
+        create_button(btn_row2, "💾 Сохранить паттерн", on_save, style="start", width=26).pack(side=tk.LEFT)
+        create_button(btn_row2, "✖ Отмена", win.destroy, width=12).pack(side=tk.LEFT, padx=8)
+
     def _bot_collect(self):
         if not self.adb.connected_device:
             self._bot_log("❌ Устройство не подключено", "error")
@@ -1240,9 +1474,9 @@ class BotMainWindow:
         # ══════════════════════════════════════════
         # 2. ЗУМ
         # ══════════════════════════════════════════
-        section("🔍 2. Зум", "Параметры pinch-жестов для приближения/отдаления")
-        entry_row(scroll, "Шаг pinch (px):", ("zoom", "pinch_step_px"), 150)
-        entry_row(scroll, "Длительность pinch (мс):", ("zoom", "pinch_duration_ms"), 600)
+        section("🔍 2. Зум", "Ctrl+scroll в окне BlueStacks. Количество и пауза между прокрутками.")
+        entry_row(scroll, "Прокруток за одно нажатие:", ("zoom", "scroll_ticks"), 10)
+        entry_row(scroll, "Пауза между прокрутками (мс):", ("zoom", "scroll_interval_ms"), 50)
         entry_row(scroll, "Макс. шагов отдаления:", ("zoom", "max_out_steps"), 5)
 
         # ══════════════════════════════════════════
@@ -1265,6 +1499,32 @@ class BotMainWindow:
                  fg=THEME["accent_blue"], font=THEME["font_normal"], relief=tk.FLAT, width=6,
                  insertbackground=THEME["accent_green"]).pack(anchor="w", padx=20, pady=(0,8))
 
+        # ── Секция создания паттернов ──
+        tk.Frame(scroll, bg=THEME["accent_blue"], height=1).pack(fill=tk.X, padx=20, pady=(8,4))
+        create_label(scroll, "📸 Создание паттернов", style="header", bg=THEME["bg_main"]).pack(anchor="w", padx=20, pady=(0,4))
+
+        pat_section = tk.Frame(scroll, bg=THEME["bg_card"], padx=10, pady=8)
+        pat_section.pack(fill=tk.X, padx=20, pady=(0,8))
+
+        self.dev_preview_label = tk.Label(
+            pat_section, text="📸 Скриншот появится здесь",
+            bg=THEME["bg_input"], fg=THEME["accent_blue"],
+            font=THEME["font_normal"], width=60, height=8, anchor="center"
+        )
+        self.dev_preview_label.pack(pady=(0,6))
+
+        _dev_btn_row = tk.Frame(pat_section, bg=THEME["bg_card"])
+        _dev_btn_row.pack(anchor="w")
+        create_button(_dev_btn_row, "📸 Скриншот", self._dev_screenshot, width=16).pack(side=tk.LEFT, padx=(0,8))
+        create_button(_dev_btn_row, "✂️ Вырезать паттерн", self._dev_crop_pattern, width=20).pack(side=tk.LEFT)
+
+        self.dev_log_text = tk.Text(
+            pat_section, height=4, bg=THEME["bg_input"], fg=THEME["accent_blue"],
+            font=THEME["font_normal"], relief=tk.FLAT, state=tk.DISABLED
+        )
+        self.dev_log_text.pack(fill=tk.X, pady=(6,0))
+        self._dev_last_screenshot_orig = None
+
         # Список шагов запуска
         create_label(scroll, "Шаги (паттерн → действие):", style="dim", bg=THEME["bg_main"]).pack(anchor="w", padx=20, pady=(0,4))
         create_label(scroll, "Бот ищет паттерн каждые 5 сек. Если найден — выполняет действие.", style="dim", bg=THEME["bg_main"]).pack(anchor="w", padx=20, pady=(0,6))
@@ -1272,7 +1532,7 @@ class BotMainWindow:
         steps_frame = tk.Frame(scroll, bg=THEME["bg_card"], padx=10, pady=8)
         steps_frame.pack(fill=tk.X, padx=20, pady=(0,8))
 
-        self._dev_startup_steps = []  # список (pattern_var, action_var)
+        self._dev_startup_steps = []  # список (pattern_var, action_var, pat_menu_widget)
 
         ACTIONS = ["tap", "zoom_out", "zoom_in", "center_base", "wait_5s", "skip"]
         ACTION_LABELS = {
@@ -1311,12 +1571,12 @@ class BotMainWindow:
 
             def _remove():
                 row.destroy()
-                self._dev_startup_steps.remove((pat_var, act_var))
+                self._dev_startup_steps.remove((pat_var, act_var, pat_menu))
             tk.Button(row, text="✕", command=_remove, bg=THEME["bg_card"],
                       fg=THEME["accent_red"], font=THEME["font_normal"],
                       relief=tk.FLAT, cursor="hand2").pack(side=tk.LEFT)
 
-            self._dev_startup_steps.append((pat_var, act_var))
+            self._dev_startup_steps.append((pat_var, act_var, pat_menu))
 
         btn_add_row = tk.Frame(steps_frame, bg=THEME["bg_card"])
         btn_add_row.pack(fill=tk.X, pady=(6,0))
@@ -1437,7 +1697,7 @@ class BotMainWindow:
             if hasattr(self, "_dev_startup_steps"):
                 data["startup_steps"] = [
                     {"pattern": p.get(), "action": a.get()}
-                    for p, a in self._dev_startup_steps
+                    for p, a, *_ in self._dev_startup_steps
                 ]
             if hasattr(self, "_dev_startup_wait"):
                 data["startup_wait"] = _parse_number(self._dev_startup_wait.get())

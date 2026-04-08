@@ -7,6 +7,9 @@ from tkinter import scrolledtext
 from ..theme import THEME
 from ..widgets import create_button, create_label
 from ..scenario_editor import ScenarioEditor
+# GAP Req 6.1 / 6.2: BotActions and BotTap are not imported here or in ScenarioEditor.
+# They are used indirectly via scenario_04_adb_actions.py. The requirement says
+# ScenarioEditor SHALL import them directly.
 
 
 def build(app):

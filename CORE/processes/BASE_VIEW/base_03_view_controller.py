@@ -294,18 +294,8 @@ class ViewController:
             return False
         gcx, gcy = grid_result["center"]
         self.center_on_point(gcx, gcy)
-        time.sleep(0.5)
 
-        # Шаг 7: повторный скриншот
-        self.log("📸 Шаг 7: повторный скриншот...")
-        if _timeout():
-            return False
-        final_frame = screenshot_provider()
-        if final_frame is None:
-            self.log("⚠ Повторный скриншот вернул None")
-        else:
-            self.log("✅ Операция центрирования завершена успешно")
-
+        self.log("✅ Центр базы найден")
         return True
 
     # ------------------------------------------------------------------
