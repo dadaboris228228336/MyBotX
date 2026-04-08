@@ -123,66 +123,50 @@ def do_pinch(device: str, zoom_in: bool, seconds: float = 2.0, log=None):
 
 def do_pinch_swipe(device: str, zoom_in: bool, times: int, log=None):
     """
-    Настоящий мультитач pinch через два параллельных ADB swipe.
-    Ctrl зажат на всё время, обе точки стартуют одновременно без задержки.
+    Zoom через Ctrl + scroll в окне BlueStacks.
+    zoom_in=True  → приближение (scroll вверх)
+    zoom_in=False → отдаление (scroll вниз)
+    times — количество прокруток (каждая = 10 единиц)
     """
-    import threading
-    import pyautogui
-    import win32gui
-    import time as _time
+    try:
+        import pyautogui
+        import win32gui
+        import time as _time
 
-    # Находим окно BlueStacks и его центр
-    BS_TITLES = ["BlueStacks App Player", "BlueStacks", "HD-Player"]
-    hwnd = None
-    def cb(h, _):
-        nonlocal hwnd
-        t = win32gui.GetWindowText(h)
-        if any(s.lower() in t.lower() for s in BS_TITLES) and win32gui.IsWindowVisible(h):
-            hwnd = h
-    win32gui.EnumWindows(cb, None)
+        BS_TITLES = ["BlueStacks App Player", "BlueStacks", "HD-Player"]
+        hwnd = None
+        def cb(h, _):
+            nonlocal hwnd
+            t = win32gui.GetWindowText(h)
+            if any(s.lower() in t.lower() for s in BS_TITLES) and win32gui.IsWindowVisible(h):
+                hwnd = h
+        win32gui.EnumWindows(cb, None)
 
-    cx, cy = 640, 360  # дефолт
-    if hwnd:
+        if not hwnd:
+            if log:
+                log("  ⚠ Окно BlueStacks не найдено", "warning")
+            return
+
         rect = win32gui.GetWindowRect(hwnd)
         cx = (rect[0] + rect[2]) // 2
         cy = (rect[1] + rect[3]) // 2
 
-    start_off = 50
-    end_off   = 250
+        pyautogui.moveTo(cx, cy, duration=0.05)
+        scroll_amount = 10 if zoom_in else -10
 
-    try:
         pyautogui.keyDown("ctrl")
-        _time.sleep(0.05)
-
         for _ in range(times):
-            if zoom_in:
-                x1s, x1e = cx - start_off, cx - end_off
-                x2s, x2e = cx + start_off, cx + end_off
-            else:
-                x1s, x1e = cx - end_off, cx - start_off
-                x2s, x2e = cx + end_off, cx + start_off
-
-            # Запускаем оба свайпа одновременно
-            t1 = threading.Thread(target=_run, args=(device, [
-                "shell", "input", "swipe",
-                str(x1s), str(cy), str(x1e), str(cy), "400"
-            ]))
-            t2 = threading.Thread(target=_run, args=(device, [
-                "shell", "input", "swipe",
-                str(x2s), str(cy), str(x2e), str(cy), "400"
-            ]))
-            t1.start()
-            t2.start()
-            t1.join(timeout=2)
-            t2.join(timeout=2)
-            _time.sleep(0.1)
-
-    finally:
+            pyautogui.scroll(scroll_amount, x=cx, y=cy)
+            _time.sleep(0.05)
         pyautogui.keyUp("ctrl")
 
-    if log:
-        d = "🔍 zoom_in" if zoom_in else "🔭 zoom_out"
-        log(f"  {d} x{times} (Ctrl+parallel swipe)", "dim")
+        if log:
+            d = "🔍 zoom_in" if zoom_in else "🔭 zoom_out"
+            log(f"  {d} x{times} (Ctrl+scroll)", "dim")
+
+    except Exception as e:
+        if log:
+            log(f"  ❌ Ошибка zoom: {e}", "error")
 
 
 def do_find_and_tap(device: str, pattern: str, threshold: float,
