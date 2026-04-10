@@ -1,3 +1,6 @@
+# Исходники скриншотов (не нужны в репо)
+88888/
+
 # Установщики и скачанные файлы (слишком большие для GitHub)
 BOT_APPLICATIONS/*.exe
 BOT_APPLICATIONS/*.zip
@@ -20,7 +23,7 @@ TESTS/TESTS/
 
 # Временные файлы
 CORE/temp/
-my_bot/
+my_bot/scenarios/
 *.log
 *.tmp
 

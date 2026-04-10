@@ -10,8 +10,8 @@
         "pinch_step_px": 150,
         "pinch_duration_ms": 400,
         "max_out_steps": 5,
-        "scroll_ticks": "",
-        "scroll_interval_ms": ""
+        "scroll_ticks": 3,
+        "scroll_interval_ms": 500
     },
     "centering": {
         "center_tolerance_px": 20,
@@ -62,7 +62,7 @@
             "action": "zoom_out"
         },
         {
-            "pattern": "(нет)",
+            "pattern": "2",
             "action": "center_base"
         }
     ],

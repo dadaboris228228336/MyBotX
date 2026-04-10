@@ -17,14 +17,14 @@ from .widgets import create_button, create_label, create_separator
 try:
     from processes.SCENARIO import (
         STEP_TYPES, STEP_TYPE_KEYS, STEP_KEY_LABELS,
-        step_label, ScenarioStorage, ScenarioRunner
+        step_label, ScenarioStorage, ScenarioRunner, PresetStorage
     )
 except ImportError:
     import sys
     sys.path.insert(0, str(Path(__file__).parent.parent))
     from processes.SCENARIO import (
         STEP_TYPES, STEP_TYPE_KEYS, STEP_KEY_LABELS,
-        step_label, ScenarioStorage, ScenarioRunner
+        step_label, ScenarioStorage, ScenarioRunner, PresetStorage
     )
 
 # GAP Req 6.1 / 6.2: The requirement says ScenarioEditor SHALL directly import
@@ -206,6 +206,45 @@ class ScenarioEditor(tk.Frame):
         self._build()
 
     def _build(self):
+        # ── Секция пресетов ──
+        preset_bar = tk.Frame(self, bg=THEME["bg_card"], pady=4)
+        preset_bar.pack(fill=tk.X)
+
+        create_label(preset_bar, "📦 Пресеты:", style="dim",
+                     bg=THEME["bg_card"]).pack(side=tk.LEFT, padx=(8, 4))
+
+        self._preset_var = tk.StringVar()
+        self._preset_menu = tk.OptionMenu(preset_bar, self._preset_var, "")
+        self._preset_menu.config(
+            bg=THEME["bg_input"], fg=THEME["accent_green"],
+            font=THEME["font_normal"], relief=tk.FLAT,
+            activebackground=THEME["bg_card"],
+            highlightthickness=0, width=22,
+        )
+        self._preset_menu["menu"].config(
+            bg=THEME["bg_input"], fg=THEME["accent_green"],
+            font=THEME["font_normal"],
+        )
+        self._preset_menu.pack(side=tk.LEFT, padx=4)
+
+        create_button(preset_bar, "📥 Загрузить", self._load_preset,
+                      width=14).pack(side=tk.LEFT, padx=2)
+
+        self._preset_dev_btn = create_button(
+            preset_bar, "✏ Изм. пресет", self._edit_preset_dev,
+            width=14
+        )
+        self._preset_dev_btn.pack(side=tk.LEFT, padx=2)
+
+        self._preset_info = create_label(
+            preset_bar, "", style="dim", bg=THEME["bg_card"]
+        )
+        self._preset_info.pack(side=tk.LEFT, padx=8)
+
+        self._refresh_preset_list()
+        self._preset_var.trace_add("write", lambda *_: self._on_preset_change())
+        self._on_preset_change()
+
         # ── Строка выбора сценария ──
         top = tk.Frame(self, bg=THEME["bg_panel"], pady=6)
         top.pack(fill=tk.X)
@@ -539,6 +578,75 @@ class ScenarioEditor(tk.Frame):
                              state=tk.NORMAL, fg=THEME["btn_start_fg"])
         self._stop_btn.config(state=tk.DISABLED, fg=THEME["text_disabled"])
 
+    # ── Пресеты ──────────────────────────────────────────────────────────────
+
+    def _refresh_preset_list(self):
+        menu = self._preset_menu["menu"]
+        menu.delete(0, tk.END)
+        self._presets_meta = PresetStorage.list_presets()
+        if self._presets_meta:
+            for p in self._presets_meta:
+                label = p["name"]
+                menu.add_command(label=label,
+                                 command=lambda x=p["file"]: self._preset_var.set(x))
+            if self._preset_var.get() not in [p["file"] for p in self._presets_meta]:
+                self._preset_var.set(self._presets_meta[0]["file"])
+        else:
+            menu.add_command(label="(нет пресетов)", command=lambda: None)
+            self._preset_var.set("")
+
+    def _on_preset_change(self):
+        file = self._preset_var.get()
+        if not file:
+            return
+        meta = PresetStorage.load_meta(file)
+        desc = meta.get("description", "")
+        short = desc[:60] + "…" if len(desc) > 60 else desc
+        self._preset_info.config(text=short)
+        state = tk.NORMAL if PresetStorage.is_dev_mode() else tk.DISABLED
+        fg = THEME["accent_orange"] if PresetStorage.is_dev_mode() else THEME["text_disabled"]
+        self._preset_dev_btn.config(state=state, fg=fg)
+
+    def _load_preset(self):
+        file = self._preset_var.get()
+        if not file:
+            self.log("⚠ Выберите пресет", "warning")
+            return
+        steps = PresetStorage.load_steps(file)
+        if not steps:
+            self.log(f"⚠ Пресет '{file}' пуст или не найден", "warning")
+            return
+        if self._steps:
+            answer = mb.askyesnocancel(
+                "Загрузить пресет",
+                f"Загрузить пресет '{file}'?\n\n"
+                "Да — заменить текущие шаги\n"
+                "Нет — добавить к текущим шагам\n"
+                "Отмена — отменить",
+                parent=self
+            )
+            if answer is None:
+                return
+            if answer:
+                self._steps = list(steps)
+            else:
+                self._steps.extend(steps)
+        else:
+            self._steps = list(steps)
+        self._refresh_listbox()
+        self.log(f"📥 Пресет '{file}' загружен ({len(steps)} шагов)", "success")
+
+    def _edit_preset_dev(self):
+        """Открывает диалог редактирования пресета (только dev_mode)."""
+        if not PresetStorage.is_dev_mode():
+            self.log("🔒 Редактирование пресетов доступно только в режиме разработчика", "warning")
+            return
+        file = self._preset_var.get()
+        if not file:
+            self.log("⚠ Выберите пресет", "warning")
+            return
+        _PresetEditDialog(self, file, self.log, self._refresh_preset_list)
+
     # ── Публичный API ────────────────────────────────────────────────────────
 
     def add_find_and_tap_step(self, pattern_name: str):
@@ -554,3 +662,139 @@ class ScenarioEditor(tk.Frame):
         """Добавляет готовый шаг напрямую (из диалога после вырезки паттерна)."""
         self._steps.append(step)
         self._refresh_listbox()
+
+
+class _PresetEditDialog(tk.Toplevel):
+    """Диалог редактирования пресета (только dev_mode)."""
+
+    def __init__(self, parent, file_stem: str, log, refresh_cb):
+        super().__init__(parent)
+        self.title(f"✏ Редактор пресета: {file_stem}")
+        self.configure(bg=THEME["bg_panel"])
+        self.resizable(True, True)
+        self.grab_set()
+        self._file = file_stem
+        self._log = log
+        self._refresh_cb = refresh_cb
+        self._steps = PresetStorage.load_steps(file_stem)
+        self._meta = PresetStorage.load_meta(file_stem)
+        self._build()
+        self.transient(parent)
+
+    def _build(self):
+        # Метаданные
+        meta_frame = tk.Frame(self, bg=THEME["bg_panel"], padx=12, pady=8)
+        meta_frame.pack(fill=tk.X)
+
+        for field, label in [("name", "Название:"), ("description", "Описание:"), ("version", "Версия:")]:
+            row = tk.Frame(meta_frame, bg=THEME["bg_panel"])
+            row.pack(fill=tk.X, pady=2)
+            create_label(row, label, style="dim", bg=THEME["bg_panel"], width=12, anchor="w").pack(side=tk.LEFT)
+            var = tk.StringVar(value=self._meta.get(field, ""))
+            tk.Entry(row, textvariable=var, bg=THEME["bg_input"], fg=THEME["accent_blue"],
+                     font=THEME["font_normal"], relief=tk.FLAT, width=50,
+                     insertbackground=THEME["accent_green"]).pack(side=tk.LEFT, fill=tk.X, expand=True)
+            setattr(self, f"_meta_{field}", var)
+
+        create_separator(self).pack(fill=tk.X, padx=12, pady=4)
+
+        # Список шагов
+        list_frame = tk.Frame(self, bg=THEME["bg_panel"], padx=12)
+        list_frame.pack(fill=tk.BOTH, expand=True)
+
+        create_label(list_frame, "Шаги пресета:", style="dim", bg=THEME["bg_panel"]).pack(anchor="w")
+
+        lb_wrap = tk.Frame(list_frame, bg=THEME["bg_input"])
+        lb_wrap.pack(fill=tk.BOTH, expand=True)
+        sb = tk.Scrollbar(lb_wrap)
+        sb.pack(side=tk.RIGHT, fill=tk.Y)
+        self._lb = tk.Listbox(lb_wrap, bg=THEME["bg_input"], fg=THEME["text_primary"],
+                              font=THEME["font_log"], relief=tk.FLAT,
+                              selectbackground=THEME["accent_blue"],
+                              selectforeground=THEME["bg_main"],
+                              yscrollcommand=sb.set, height=12)
+        self._lb.pack(fill=tk.BOTH, expand=True)
+        sb.config(command=self._lb.yview)
+        self._lb.bind("<Double-Button-1>", lambda e: self._edit_step())
+        self._refresh_lb()
+
+        btns = tk.Frame(list_frame, bg=THEME["bg_panel"])
+        btns.pack(fill=tk.X, pady=4)
+        create_button(btns, "＋ Добавить", self._add_step, style="start", width=14).pack(side=tk.LEFT, padx=(0, 4))
+        create_button(btns, "✏ Изменить", self._edit_step, width=12).pack(side=tk.LEFT, padx=2)
+        create_button(btns, "▲", self._move_up, width=3).pack(side=tk.LEFT, padx=1)
+        create_button(btns, "▼", self._move_down, width=3).pack(side=tk.LEFT, padx=1)
+        create_button(btns, "🗑", self._del_step, width=3).pack(side=tk.LEFT, padx=1)
+
+        create_separator(self).pack(fill=tk.X, padx=12, pady=4)
+
+        bottom = tk.Frame(self, bg=THEME["bg_panel"], padx=12, pady=8)
+        bottom.pack(fill=tk.X)
+        create_button(bottom, "💾 Сохранить пресет", self._save, style="start", width=20).pack(side=tk.LEFT)
+        create_button(bottom, "✖ Закрыть", self.destroy, width=12).pack(side=tk.LEFT, padx=8)
+
+    def _refresh_lb(self):
+        self._lb.delete(0, tk.END)
+        if not self._steps:
+            self._lb.insert(tk.END, "  (нет шагов)")
+            return
+        for i, s in enumerate(self._steps, 1):
+            self._lb.insert(tk.END, f"  {i}. {step_label(s)}")
+
+    def _get_sel(self):
+        sel = self._lb.curselection()
+        return sel[0] if sel and self._steps else None
+
+    def _add_step(self):
+        dlg = StepDialog(self, title="Добавить шаг в пресет")
+        if dlg.result:
+            self._steps.append(dlg.result)
+            self._refresh_lb()
+
+    def _edit_step(self):
+        i = self._get_sel()
+        if i is None:
+            return
+        dlg = StepDialog(self, title=f"Редактировать шаг {i+1}", step=self._steps[i])
+        if dlg.result:
+            self._steps[i] = dlg.result
+            self._refresh_lb()
+            self._lb.selection_set(i)
+
+    def _del_step(self):
+        i = self._get_sel()
+        if i is None:
+            return
+        self._steps.pop(i)
+        self._refresh_lb()
+
+    def _move_up(self):
+        i = self._get_sel()
+        if i is None or i == 0:
+            return
+        self._steps[i-1], self._steps[i] = self._steps[i], self._steps[i-1]
+        self._refresh_lb()
+        self._lb.selection_set(i-1)
+
+    def _move_down(self):
+        i = self._get_sel()
+        if i is None or i >= len(self._steps) - 1:
+            return
+        self._steps[i], self._steps[i+1] = self._steps[i+1], self._steps[i]
+        self._refresh_lb()
+        self._lb.selection_set(i+1)
+
+    def _save(self):
+        meta = {
+            "name":        self._meta_name.get().strip(),
+            "description": self._meta_description.get().strip(),
+            "version":     self._meta_version.get().strip(),
+            "author":      self._meta.get("author", ""),
+        }
+        try:
+            PresetStorage.save(self._file, meta, self._steps)
+            self._log(f"💾 Пресет '{self._file}' сохранён ({len(self._steps)} шагов)", "success")
+            self._refresh_cb()
+            self.destroy()
+        except PermissionError as e:
+            mb.showerror("Ошибка", str(e), parent=self)
