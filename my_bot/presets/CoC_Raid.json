@@ -1,0 +1,83 @@
+{
+    "name": "CoC_Raid",
+    "description": "Автоматический рейд Clan Capital: открыть карту → выбрать базу → атаковать → следующий рейд",
+    "author": "Mihasa",
+    "version": "1.0",
+    "steps": [
+        {
+            "type": "find_and_tap",
+            "params": {
+                "pattern": "KORABLIK",
+                "threshold": 0.8,
+                "retries": 5,
+                "retry_delay": 2.0
+            }
+        },
+        {
+            "type": "wait",
+            "params": {
+                "seconds": 2
+            }
+        },
+        {
+            "type": "find_and_tap",
+            "params": {
+                "pattern": "KartaREIDOV",
+                "threshold": 0.8,
+                "retries": 5,
+                "retry_delay": 2.0
+            }
+        },
+        {
+            "type": "wait",
+            "params": {
+                "seconds": 2
+            }
+        },
+        {
+            "type": "find_and_tap",
+            "params": {
+                "pattern": "V_ATAKY1",
+                "threshold": 0.8,
+                "retries": 5,
+                "retry_delay": 2.0
+            }
+        },
+        {
+            "type": "wait",
+            "params": {
+                "seconds": 3
+            }
+        },
+        {
+            "type": "find_and_tap",
+            "params": {
+                "pattern": "VPERED",
+                "threshold": 0.8,
+                "retries": 5,
+                "retry_delay": 2.0
+            }
+        },
+        {
+            "type": "wait",
+            "params": {
+                "seconds": 5
+            }
+        },
+        {
+            "type": "find_and_tap",
+            "params": {
+                "pattern": "SLEDREID",
+                "threshold": 0.8,
+                "retries": 5,
+                "retry_delay": 2.0
+            }
+        },
+        {
+            "type": "wait",
+            "params": {
+                "seconds": 2
+            }
+        }
+    ]
+}

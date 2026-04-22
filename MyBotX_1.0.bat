@@ -1,15 +1,14 @@
 @echo off
 setlocal enabledelayedexpansion
 cd /d "%~dp0"
-chcp 65001 >nul
 title MyBotX 1.0
 color 0A
 cls
 
 echo.
-echo ════════════════════════════════════════════════════════
-echo     MyBotX 1.0  —  Автоматическая установка
-echo ════════════════════════════════════════════════════════
+echo ========================================================
+echo     MyBotX 1.0  -  Starting...
+echo ========================================================
 echo.
 
 set "ROOT_DIR=%~dp0"
@@ -134,48 +133,77 @@ echo [4/4] Проверка Python пакетов...
 echo     psutil==5.9.6  Pillow==10.1.0  opencv-python==4.8.1.78
 echo     numpy==1.26.4  pywin32==306    pyautogui==0.9.54
 
-python "%ROOT_DIR%CORE\check_requirements.py" >nul 2>&1
+REM --- Python packages ---
+echo.
+echo [4/4] Checking Python packages...
+
+"!PYTHON_EXE!" "%ROOT_DIR%CORE\check_requirements.py" >nul 2>&1
 if not errorlevel 1 (
-    echo ✅ Все пакеты уже установлены
-    goto packages_ok
+    echo  [OK] All packages installed
+    goto :packages_ok
 )
 
-echo ⚙️  Устанавливаем пакеты...
-python -m pip install --upgrade pip --quiet
-python -m pip install -r "%ROOT_DIR%CORE\requirements.txt"
+echo  Installing packages...
+
+"!PYTHON_EXE!" -m pip --version >nul 2>&1
 if errorlevel 1 (
-    echo ❌ Ошибка установки пакетов!
+    echo  pip not found, restoring...
+    "!PYTHON_EXE!" -m ensurepip --upgrade >nul 2>&1
+    if errorlevel 1 (
+        powershell -Command "& { $ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri 'https://bootstrap.pypa.io/get-pip.py' -OutFile '%TEMP%\get-pip.py' }" >nul 2>&1
+        "!PYTHON_EXE!" "%TEMP%\get-pip.py" --quiet
+        if errorlevel 1 (
+            echo  [ERR] Failed to install pip. Reinstall Python with pip checkbox.
+            pause
+            exit /b 1
+        )
+    )
+)
+
+"!PYTHON_EXE!" -m pip install --upgrade pip --quiet
+"!PYTHON_EXE!" -m pip install -r "%ROOT_DIR%CORE\requirements.txt"
+if errorlevel 1 (
+    echo  [ERR] Package installation failed!
     pause
     exit /b 1
 )
 
-REM pywin32 требует post-install шаг
-python -c "import win32gui" >nul 2>&1
+"!PYTHON_EXE!" -c "import win32gui" >nul 2>&1
 if errorlevel 1 (
-    echo ⚙️  Настройка pywin32...
-    python -m pywin32_postinstall -install >nul 2>&1
+    "!PYTHON_EXE!" -m pywin32_postinstall -install >nul 2>&1
 )
 
-echo ✅ Все пакеты установлены
+echo  [OK] All packages installed
 
 :packages_ok
 
-REM ══════════════════════════════════════════════════════════
-REM  ЗАПУСК
-REM ══════════════════════════════════════════════════════════
 echo.
-echo ════════════════════════════════════════════════════════
-echo  ✅ Все проверки пройдены. Запускаем MyBotX...
-echo ════════════════════════════════════════════════════════
+echo ========================================================
+echo  All checks passed. Starting MyBotX...
+echo ========================================================
 echo.
 
 if not exist "%ROOT_DIR%CORE\main.py" (
-    echo ❌ Файл CORE\main.py не найден!
+    echo  [ERR] File CORE\main.py not found!
     pause
     exit /b 1
 )
 
 cd /d "%ROOT_DIR%CORE"
-start "" python main.py
+start "" "!PYTHON_EXE!" main.py
 timeout /t 2 /nobreak >nul
 exit /b 0
+
+:check_python
+set "_PY_TMP="
+for /f "tokens=2" %%v in ('"%~1" --version 2^>^&1') do set "_PY_TMP=%%v"
+echo !_PY_TMP! | findstr /r "^[0-9][0-9]*\.[0-9]" >nul 2>&1
+if errorlevel 1 goto :eof
+for /f "tokens=1,2 delims=." %%a in ("!_PY_TMP!") do (
+    if %%a GEQ 3 if %%b GEQ 10 (
+        set "PYTHON_EXE=%~1"
+        set "PY_VER=!_PY_TMP!"
+        echo  [OK] Python !_PY_TMP!
+    )
+)
+goto :eof

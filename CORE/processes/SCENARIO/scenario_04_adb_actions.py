@@ -51,12 +51,16 @@ def do_stop(device: str, package: str):
 
 def do_pinch(device: str, zoom_in: bool, seconds: float = 2.0, log=None):
     """
-    Zoom in/out в BlueStacks через Ctrl + колёсико мыши.
-    seconds — сколько секунд крутить колёсико.
+    Zoom in/out в BlueStacks через настоящий мультитач pinch.
+    Две точки движутся одновременно в противоположных направлениях.
+    zoom_in=True  → точки расходятся (приближение)
+    zoom_in=False → точки сходятся (отдаление)
     """
     try:
         import pyautogui
         import win32gui
+        import win32con
+        import ctypes
         import time as _time
 
         # Находим окно BlueStacks
@@ -79,23 +83,36 @@ def do_pinch(device: str, zoom_in: bool, seconds: float = 2.0, log=None):
         cx = (rect[0] + rect[2]) // 2
         cy = (rect[1] + rect[3]) // 2
 
-        # Перемещаем курсор в центр окна BlueStacks и крутим колёсико
+        # Параметры pinch
+        steps    = max(1, int(seconds * 20))   # шагов анимации
+        interval = seconds / steps
+        start_offset = 200   # начальное расстояние от центра (px)
+        end_offset   = 50    # конечное расстояние от центра (px)
+
+        if zoom_in:
+            # Приближение: точки расходятся от центра
+            offsets = [int(start_offset + (end_offset - start_offset) * i / steps)
+                       for i in range(steps + 1)]
+            offsets = list(reversed(offsets))  # от малого к большому
+        else:
+            # Отдаление: точки сходятся к центру
+            offsets = [int(start_offset - (start_offset - end_offset) * i / steps)
+                       for i in range(steps + 1)]
+
+        # Выполняем pinch через Ctrl+scroll (надёжнее на BlueStacks)
         pyautogui.moveTo(cx, cy, duration=0.1)
-        # scroll(-3) = вниз = zoom OUT (отдалить), scroll(3) = вверх = zoom IN (приблизить)
-        # В BlueStacks с Ctrl: вниз = отдалить, вверх = приблизить
-        scroll_dir = -3 if zoom_in else 3
-        interval   = 0.05
-        ticks      = int(seconds / interval)
+        scroll_amount = 10 if zoom_in else -10
+        ticks = max(1, int(seconds / 0.05))
 
         pyautogui.keyDown("ctrl")
         for _ in range(ticks):
-            pyautogui.scroll(scroll_dir, x=cx, y=cy)
-            _time.sleep(interval)
+            pyautogui.scroll(scroll_amount, x=cx, y=cy)
+            _time.sleep(0.05)
         pyautogui.keyUp("ctrl")
 
         if log:
             d = "🔍 zoom_in" if zoom_in else "🔭 zoom_out"
-            log(f"  {d} {seconds}с (Ctrl+scroll)", "dim")
+            log(f"  {d} {seconds}с (Ctrl+scroll x{scroll_amount})", "dim")
 
     except ImportError as e:
         if log:
@@ -107,38 +124,50 @@ def do_pinch(device: str, zoom_in: bool, seconds: float = 2.0, log=None):
 
 def do_pinch_swipe(device: str, zoom_in: bool, times: int, log=None):
     """
-    Pinch через два параллельных свайпа.
-    Координаты для горизонтального экрана 1280x720: центр (640, 360).
+    Zoom через Ctrl + scroll в окне BlueStacks.
+    zoom_in=True  → приближение (scroll вверх)
+    zoom_in=False → отдаление (scroll вниз)
+    times — количество прокруток (каждая = 10 единиц)
     """
-    import threading
-    cx, cy, offset = 640, 360, 200  # горизонтальный экран CoC
+    try:
+        import pyautogui
+        import win32gui
+        import time as _time
 
-    def swipe1():
-        if zoom_in:
-            _run(device, ["shell", "input", "swipe",
-                          str(cx - offset), str(cy), str(cx - 50), str(cy), "500"])
-        else:
-            _run(device, ["shell", "input", "swipe",
-                          str(cx - 50), str(cy), str(cx - offset), str(cy), "500"])
+        BS_TITLES = ["BlueStacks App Player", "BlueStacks", "HD-Player"]
+        hwnd = None
+        def cb(h, _):
+            nonlocal hwnd
+            t = win32gui.GetWindowText(h)
+            if any(s.lower() in t.lower() for s in BS_TITLES) and win32gui.IsWindowVisible(h):
+                hwnd = h
+        win32gui.EnumWindows(cb, None)
 
-    def swipe2():
-        if zoom_in:
-            _run(device, ["shell", "input", "swipe",
-                          str(cx + offset), str(cy), str(cx + 50), str(cy), "500"])
-        else:
-            _run(device, ["shell", "input", "swipe",
-                          str(cx + 50), str(cy), str(cx + offset), str(cy), "500"])
+        if not hwnd:
+            if log:
+                log("  ⚠ Окно BlueStacks не найдено", "warning")
+            return
 
-    for _ in range(times):
-        t1 = threading.Thread(target=swipe1)
-        t2 = threading.Thread(target=swipe2)
-        t1.start(); t2.start()
-        t1.join();  t2.join()
-        time.sleep(0.5)
+        rect = win32gui.GetWindowRect(hwnd)
+        cx = (rect[0] + rect[2]) // 2
+        cy = (rect[1] + rect[3]) // 2
 
-    if log:
-        direction = "🔍 pinch_in" if zoom_in else "🔭 pinch_out"
-        log(f"  {direction} x{times} (parallel swipe, center={cx},{cy})", "dim")
+        pyautogui.moveTo(cx, cy, duration=0.05)
+        scroll_amount = 10 if zoom_in else -10
+
+        pyautogui.keyDown("ctrl")
+        for _ in range(times):
+            pyautogui.scroll(scroll_amount, x=cx, y=cy)
+            _time.sleep(0.05)
+        pyautogui.keyUp("ctrl")
+
+        if log:
+            d = "🔍 zoom_in" if zoom_in else "🔭 zoom_out"
+            log(f"  {d} x{times} (Ctrl+scroll)", "dim")
+
+    except Exception as e:
+        if log:
+            log(f"  ❌ Ошибка zoom: {e}", "error")
 
 
 def do_find_and_tap(device: str, pattern: str, threshold: float,

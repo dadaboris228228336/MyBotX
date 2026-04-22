@@ -1,0 +1,95 @@
+{
+    "name": "CoC_Launch",
+    "description": "Запуск Clash of Clans: открыть игру → принять диалоги → загрузить сохранение",
+    "author": "Mihasa",
+    "version": "1.0",
+    "steps": [
+        {
+            "type": "launch_app",
+            "params": {
+                "package": "com.supercell.clashofclans"
+            }
+        },
+        {
+            "type": "wait",
+            "params": {
+                "seconds": 15
+            }
+        },
+        {
+            "type": "find_and_tap",
+            "params": {
+                "pattern": "OTKRIT",
+                "threshold": 0.8,
+                "retries": 3,
+                "retry_delay": 3.0
+            }
+        },
+        {
+            "type": "wait",
+            "params": {
+                "seconds": 2
+            }
+        },
+        {
+            "type": "find_and_tap",
+            "params": {
+                "pattern": "DA",
+                "threshold": 0.8,
+                "retries": 3,
+                "retry_delay": 2.0
+            }
+        },
+        {
+            "type": "wait",
+            "params": {
+                "seconds": 2
+            }
+        },
+        {
+            "type": "find_and_tap",
+            "params": {
+                "pattern": "OK",
+                "threshold": 0.8,
+                "retries": 3,
+                "retry_delay": 2.0
+            }
+        },
+        {
+            "type": "wait",
+            "params": {
+                "seconds": 2
+            }
+        },
+        {
+            "type": "find_and_tap",
+            "params": {
+                "pattern": "ZAGRYZITZAPIS",
+                "threshold": 0.8,
+                "retries": 3,
+                "retry_delay": 2.0
+            }
+        },
+        {
+            "type": "wait",
+            "params": {
+                "seconds": 5
+            }
+        },
+        {
+            "type": "find_and_tap",
+            "params": {
+                "pattern": "VOSPR",
+                "threshold": 0.8,
+                "retries": 3,
+                "retry_delay": 2.0
+            }
+        },
+        {
+            "type": "wait",
+            "params": {
+                "seconds": 10
+            }
+        }
+    ]
+}

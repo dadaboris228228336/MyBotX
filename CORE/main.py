@@ -4,6 +4,7 @@
 🖥️ MyBotX GUI v3.0.0 - Геймерский интерфейс
 """
 
+import os
 import sys
 import time
 import tkinter as tk
@@ -56,6 +57,10 @@ class BotMainWindow:
         self.bluestacks = BlueStacksManager()
         self.adb = AdvancedADBManager()
 
+        # Размеры экрана BlueStacks (обновляются при подключении устройства)
+        self._base_screen_w = 1280
+        self._base_screen_h = 720
+
         # Инициализируем логгер сессии
         try:
             import session_logger
@@ -64,8 +69,10 @@ class BotMainWindow:
         except Exception:
             self._session_logger = None
 
-        # Удаляем PID файл при закрытии пользователем (без выключения BS)
+        # Записываем PID текущего процесса (R1: Smart Launcher PID)
         self._pid_file = Path(__file__).parent / "temp" / "mybotx.pid"
+        self._pid_file.parent.mkdir(parents=True, exist_ok=True)
+        self._pid_file.write_text(str(os.getpid()), encoding="utf-8")
         self.root.protocol("WM_DELETE_WINDOW", self._on_close_user)
 
         # Мониторинг BlueStacks — проверяем каждые 10 сек
@@ -131,14 +138,16 @@ class BotMainWindow:
             "main":     tk.Frame(self.tab_content, bg=THEME["bg_main"]),
             "check":    tk.Frame(self.tab_content, bg=THEME["bg_main"]),
             "bot":      tk.Frame(self.tab_content, bg=THEME["bg_main"]),
+            "base":     tk.Frame(self.tab_content, bg=THEME["bg_main"]),
             "auto":     tk.Frame(self.tab_content, bg=THEME["bg_main"]),
             "settings": tk.Frame(self.tab_content, bg=THEME["bg_main"]),
             "about":    tk.Frame(self.tab_content, bg=THEME["bg_main"]),
+            "dev":      tk.Frame(self.tab_content, bg=THEME["bg_main"]),
         }
 
         # Кнопки вкладок
         self.tab_buttons = {}
-        tabs = [("main", "🏠  ОСНОВНОЕ"), ("check", "🔍  ПРОВЕРКА"), ("bot", "🤖  БОТ"), ("auto", "⚡  АВТО"), ("settings", "⚙️  НАСТРОЙКИ"), ("about", "ℹ️  О ПРОГРАММЕ")]
+        tabs = [("main", "🏠  ОСНОВНОЕ"), ("check", "🔍  ПРОВЕРКА"), ("bot", "🤖  БОТ"), ("base", "🏰  БАЗА"), ("auto", "⚡  АВТО"), ("settings", "⚙️  НАСТРОЙКИ"), ("about", "ℹ️  О ПРОГРАММЕ")]
         for key, label in tabs:
             btn = tk.Button(
                 tab_bar,
@@ -158,20 +167,45 @@ class BotMainWindow:
             btn.pack(side=tk.LEFT)
             self.tab_buttons[key] = btn
 
+        # Кнопка DEV — скрыта по умолчанию
+        dev_btn = tk.Button(
+            tab_bar,
+            text="⚙️  DEV",
+            bg=THEME["bg_panel"],
+            fg=THEME["accent_orange"],
+            font=THEME["font_normal"],
+            relief=tk.FLAT,
+            bd=0,
+            padx=20,
+            pady=10,
+            cursor="hand2",
+            command=lambda: self._switch_tab("dev"),
+            activebackground=THEME["bg_card"],
+            activeforeground=THEME["accent_orange"],
+        )
+        self.tab_buttons["dev"] = dev_btn
+        # Не пакуем — скрыта по умолчанию
+
         create_separator(self.root).pack(fill=tk.X)
 
         # Наполняем вкладки через модули tabs/
-        from UI.tabs.tab_main  import build as build_main
-        from UI.tabs.tab_check import build as build_check
-        from UI.tabs.tab_bot   import build as build_bot
-        from UI.tabs.tab_about import build as build_about
+        from UI.tabs.tab_main     import build as build_main
+        from UI.tabs.tab_check    import build as build_check
+        from UI.tabs.tab_bot      import build as build_bot
+        from UI.tabs.tab_base_view import build as build_base
+        from UI.tabs.tab_auto     import build as build_auto
+        from UI.tabs.tab_settings import build as build_settings
+        from UI.tabs.tab_about    import build as build_about
+        from UI.tabs.tab_dev      import build as build_dev
 
         build_main(self)
         build_check(self)
         build_bot(self)
-        self._build_auto_tab()
-        self._build_settings_tab()
+        build_base(self)
+        build_auto(self)
+        build_settings(self)
         build_about(self)
+        build_dev(self)
 
         # Показываем первую вкладку
         self._switch_tab("main")
@@ -181,12 +215,23 @@ class BotMainWindow:
         for k, frame in self.frames.items():
             frame.pack_forget()
         self.frames[key].pack(fill=tk.BOTH, expand=True)
+        self._current_tab = key
+
+        # При открытии DEV вкладки — загружаем актуальные значения
+        if key == "dev" and hasattr(self, "_dev_load_values"):
+            self._dev_load_values()
 
         for k, btn in self.tab_buttons.items():
             if k == key:
-                btn.config(fg=THEME["accent_blue"], bg=THEME["bg_card"])
+                if k == "dev":
+                    btn.config(fg=THEME["accent_orange"], bg=THEME["bg_card"])
+                else:
+                    btn.config(fg=THEME["accent_blue"], bg=THEME["bg_card"])
             else:
-                btn.config(fg=THEME["text_secondary"], bg=THEME["bg_panel"])
+                if k == "dev":
+                    btn.config(fg=THEME["accent_orange"], bg=THEME["bg_panel"])
+                else:
+                    btn.config(fg=THEME["text_secondary"], bg=THEME["bg_panel"])
 
     # ─────────────────────────────────────────────
     # ВКЛАДКА: ОСНОВНОЕ
@@ -794,320 +839,6 @@ class BotMainWindow:
             pass
         self.root.destroy()
 
-    # ─────────────────────────────────────────────
-    # ВКЛАДКА: АВТОМАТИЗАЦИЯ
-    # ─────────────────────────────────────────────
-
-    def _build_auto_tab(self):
-        import json
-        frame = self.frames["auto"]
-        config_path = Path(__file__).parent.parent / "CONFIG" / "config.json"
-
-        def load_auto_cfg() -> dict:
-            try:
-                with open(config_path, encoding="utf-8") as f:
-                    return json.load(f).get("auto_settings", {})
-            except Exception:
-                return {}
-
-        def save_auto_cfg():
-            try:
-                with open(config_path, encoding="utf-8") as f:
-                    cfg = json.load(f)
-                cfg["auto_settings"] = {
-                    "minimize_bs":       self._auto_vars["minimize_bs"].get(),
-                    "minimize_bs_delay": self._auto_bs_delay.get(),
-                    "minimize_bot":      self._auto_vars["minimize_bot"].get(),
-                    "minimize_bot_delay":self._auto_bot_delay.get(),
-                    "autorun_scenario":  self._auto_vars["autorun_scenario"].get(),
-                    "repeat_scenario":   self._auto_vars["repeat_scenario"].get(),
-                    "repeat_count":      self._auto_repeat_count.get(),
-                    "repeat_pause":      self._auto_vars["repeat_pause"].get(),
-                    "repeat_pause_secs": self._auto_repeat_pause.get(),
-                    "notify_done":       self._auto_vars["notify_done"].get(),
-                    "verbose_log":       self._auto_vars["verbose_log"].get(),
-                }
-                with open(config_path, "w", encoding="utf-8") as f:
-                    json.dump(cfg, f, indent=2, ensure_ascii=False)
-            except Exception:
-                pass
-
-        saved = load_auto_cfg()
-
-        scroll = tk.Frame(frame, bg=THEME["bg_main"])
-        scroll.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
-
-        create_label(scroll, "⚡ Автоматизация", style="header", bg=THEME["bg_main"]).pack(anchor="w", pady=(0, 6))
-        create_separator(scroll).pack(fill=tk.X, pady=(0, 14))
-
-        self._auto_vars = {}
-
-        def toggle_row(parent, key, title, description, extra_widget_fn=None):
-            row = tk.Frame(parent, bg=THEME["bg_card"], padx=12, pady=10)
-            row.pack(fill=tk.X, pady=4)
-
-            var = tk.BooleanVar(value=saved.get(key, False))
-            self._auto_vars[key] = var
-
-            left = tk.Frame(row, bg=THEME["bg_card"])
-            left.pack(side=tk.LEFT, fill=tk.X, expand=True)
-
-            create_label(left, title, style="normal", bg=THEME["bg_card"]).pack(anchor="w")
-            create_label(left, description, style="dim", bg=THEME["bg_card"]).pack(anchor="w")
-
-            if extra_widget_fn:
-                extra_widget_fn(left, var)
-
-            lbl = tk.Label(row, text="○ ВЫКЛ", fg=THEME["text_secondary"],
-                           bg=THEME["bg_card"], font=THEME["font_normal"], cursor="hand2")
-            lbl.pack(side=tk.RIGHT, padx=8)
-
-            def refresh_lbl(v=var):
-                lbl.config(text="● ВКЛ" if v.get() else "○ ВЫКЛ",
-                           fg=THEME["accent_green"] if v.get() else THEME["text_secondary"])
-
-            def on_click(e, v=var):
-                v.set(not v.get())
-
-            lbl.bind("<Button-1>", on_click)
-            var.trace_add("write", lambda *_: (refresh_lbl(), save_auto_cfg()))
-            refresh_lbl()  # применяем загруженное значение сразу
-
-        # ── Переключатели ──────────────────────────────────────────────────
-
-        def bs_delay_widget(parent, var):
-            row2 = tk.Frame(parent, bg=THEME["bg_card"])
-            row2.pack(anchor="w", pady=(4, 0))
-            create_label(row2, "Через (сек):", style="dim", bg=THEME["bg_card"]).pack(side=tk.LEFT)
-            self._auto_bs_delay = tk.StringVar(value=saved.get("minimize_bs_delay", "10"))
-            e = tk.Entry(row2, textvariable=self._auto_bs_delay, width=6,
-                         bg=THEME["bg_input"], fg=THEME["accent_blue"],
-                         font=THEME["font_small"], relief=tk.FLAT,
-                         insertbackground=THEME["accent_green"])
-            e.pack(side=tk.LEFT, padx=6)
-            e.bind("<FocusOut>", lambda _: save_auto_cfg())
-            e.bind("<Return>",   lambda _: save_auto_cfg())
-
-        toggle_row(scroll, "minimize_bs",
-                   "📱 Свернуть BlueStacks при запуске бота",
-                   "Автоматически сворачивает окно BlueStacks через N секунд после старта",
-                   bs_delay_widget)
-
-        def bot_delay_widget(parent, var):
-            row2 = tk.Frame(parent, bg=THEME["bg_card"])
-            row2.pack(anchor="w", pady=(4, 0))
-            create_label(row2, "Через (сек):", style="dim", bg=THEME["bg_card"]).pack(side=tk.LEFT)
-            self._auto_bot_delay = tk.StringVar(value=saved.get("minimize_bot_delay", "15"))
-            e = tk.Entry(row2, textvariable=self._auto_bot_delay, width=6,
-                         bg=THEME["bg_input"], fg=THEME["accent_blue"],
-                         font=THEME["font_small"], relief=tk.FLAT,
-                         insertbackground=THEME["accent_green"])
-            e.pack(side=tk.LEFT, padx=6)
-            e.bind("<FocusOut>", lambda _: save_auto_cfg())
-            e.bind("<Return>",   lambda _: save_auto_cfg())
-
-        toggle_row(scroll, "minimize_bot",
-                   "🤖 Свернуть MyBotX при запуске бота",
-                   "Сворачивает окно MyBotX через N секунд после старта сценария",
-                   bot_delay_widget)
-
-        toggle_row(scroll, "autorun_scenario",
-                   "▶ Автозапуск сценария при нажатии СТАРТ",
-                   "Сразу запускает активный сценарий после подключения к BlueStacks")
-
-        def repeat_widget(parent, var):
-            row2 = tk.Frame(parent, bg=THEME["bg_card"])
-            row2.pack(anchor="w", pady=(4, 0))
-            create_label(row2, "Повторов (0 = бесконечно):", style="dim", bg=THEME["bg_card"]).pack(side=tk.LEFT)
-            self._auto_repeat_count = tk.StringVar(value=saved.get("repeat_count", "0"))
-            e = tk.Entry(row2, textvariable=self._auto_repeat_count, width=6,
-                         bg=THEME["bg_input"], fg=THEME["accent_blue"],
-                         font=THEME["font_small"], relief=tk.FLAT,
-                         insertbackground=THEME["accent_green"])
-            e.pack(side=tk.LEFT, padx=6)
-            e.bind("<FocusOut>", lambda _: save_auto_cfg())
-            e.bind("<Return>",   lambda _: save_auto_cfg())
-
-        toggle_row(scroll, "repeat_scenario",
-                   "🔁 Повторять сценарий",
-                   "После завершения сценарий запускается снова",
-                   repeat_widget)
-
-        def pause_widget(parent, var):
-            row2 = tk.Frame(parent, bg=THEME["bg_card"])
-            row2.pack(anchor="w", pady=(4, 0))
-            create_label(row2, "Пауза (сек):", style="dim", bg=THEME["bg_card"]).pack(side=tk.LEFT)
-            self._auto_repeat_pause = tk.StringVar(value=saved.get("repeat_pause_secs", "5"))
-            e = tk.Entry(row2, textvariable=self._auto_repeat_pause, width=6,
-                         bg=THEME["bg_input"], fg=THEME["accent_blue"],
-                         font=THEME["font_small"], relief=tk.FLAT,
-                         insertbackground=THEME["accent_green"])
-            e.pack(side=tk.LEFT, padx=6)
-            e.bind("<FocusOut>", lambda _: save_auto_cfg())
-            e.bind("<Return>",   lambda _: save_auto_cfg())
-
-        toggle_row(scroll, "repeat_pause",
-                   "⏸ Пауза между повторами сценария",
-                   "Ждать N секунд перед следующим повтором",
-                   pause_widget)
-
-        toggle_row(scroll, "notify_done",
-                   "🔔 Уведомление по завершении сценария",
-                   "Показывает системное уведомление Windows когда сценарий завершён")
-
-        toggle_row(scroll, "verbose_log",
-                   "📋 Подробный лог каждого шага",
-                   "Выводить детальную информацию о каждом действии в лог")
-
-        create_separator(scroll).pack(fill=tk.X, pady=12)
-        create_label(scroll, "💡 Предложения: скриншот по расписанию, стоп по паттерну, "
-                              "авто-рестарт при зависании BlueStacks",
-                     style="dim", bg=THEME["bg_main"]).pack(anchor="w")
-
-    def get_auto_settings(self) -> dict:
-        """Возвращает текущие настройки автоматизации"""
-        return {k: v.get() for k, v in self._auto_vars.items()}
-
-    # ─────────────────────────────────────────────
-    # ВКЛАДКА: НАСТРОЙКИ
-    # ─────────────────────────────────────────────
-
-    def _build_settings_tab(self):
-        import json
-        frame = self.frames["settings"]
-
-        scroll = tk.Frame(frame, bg=THEME["bg_main"])
-        scroll.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
-
-        create_label(scroll, "⚙️ Настройки MyBotX", style="header", bg=THEME["bg_main"]).pack(anchor="w", pady=(0, 10))
-        create_separator(scroll).pack(fill=tk.X, pady=(0, 16))
-
-        # Загружаем config.json
-        config_path = Path(__file__).parent.parent / "CONFIG" / "config.json"
-        try:
-            with open(config_path, encoding="utf-8") as f:
-                config = json.load(f)
-        except Exception:
-            config = {}
-
-        adb_cfg = config.get("technical_config", {}).get("adb_settings", {})
-
-        # ── ADB настройки ──
-        create_label(scroll, "🔌 ADB", style="dim", bg=THEME["bg_main"]).pack(anchor="w", pady=(0, 4))
-
-        row1 = tk.Frame(scroll, bg=THEME["bg_main"])
-        row1.pack(fill=tk.X, pady=4)
-        create_label(row1, "Таймаут порта (сек):", style="normal", bg=THEME["bg_main"], width=22, anchor="w").pack(side=tk.LEFT)
-        self.cfg_timeout = tk.Entry(row1, bg=THEME["bg_input"], fg=THEME["accent_blue"],
-                                    font=THEME["font_normal"], relief=tk.FLAT, width=8,
-                                    insertbackground=THEME["accent_green"])
-        self.cfg_timeout.insert(0, str(adb_cfg.get("timeout", 1.0)))
-        self.cfg_timeout.pack(side=tk.LEFT, padx=8)
-
-        row2 = tk.Frame(scroll, bg=THEME["bg_main"])
-        row2.pack(fill=tk.X, pady=4)
-        create_label(row2, "Макс. ожидание (сек):", style="normal", bg=THEME["bg_main"], width=22, anchor="w").pack(side=tk.LEFT)
-        self.cfg_max_wait = tk.Entry(row2, bg=THEME["bg_input"], fg=THEME["accent_blue"],
-                                     font=THEME["font_normal"], relief=tk.FLAT, width=8,
-                                     insertbackground=THEME["accent_green"])
-        self.cfg_max_wait.insert(0, str(adb_cfg.get("max_wait", 15)))
-        self.cfg_max_wait.pack(side=tk.LEFT, padx=8)
-
-        create_separator(scroll).pack(fill=tk.X, pady=12)
-
-        # ── BlueStacks настройки ──
-        create_label(scroll, "📱 BlueStacks", style="dim", bg=THEME["bg_main"]).pack(anchor="w", pady=(0, 4))
-
-        bs_cfg  = config.get("bluestacks", {})
-        bs_path = bs_cfg.get("path", "")
-        row3 = tk.Frame(scroll, bg=THEME["bg_main"])
-        row3.pack(fill=tk.X, pady=4)
-        create_label(row3, "Путь к HD-Player.exe:", style="normal", bg=THEME["bg_main"], width=22, anchor="w").pack(side=tk.LEFT)
-        self.cfg_bs_path = tk.Entry(row3, bg=THEME["bg_input"], fg=THEME["accent_blue"],
-                                    font=THEME["font_normal"], relief=tk.FLAT, width=40,
-                                    insertbackground=THEME["accent_green"])
-        self.cfg_bs_path.insert(0, bs_path)
-        self.cfg_bs_path.pack(side=tk.LEFT, padx=8)
-
-        # Разрешение окна BlueStacks
-        row_res = tk.Frame(scroll, bg=THEME["bg_main"])
-        row_res.pack(fill=tk.X, pady=4)
-        create_label(row_res, "Разрешение окна (px):", style="normal",
-                     bg=THEME["bg_main"], width=22, anchor="w").pack(side=tk.LEFT)
-        self.cfg_bs_width = tk.Entry(row_res, bg=THEME["bg_input"], fg=THEME["accent_blue"],
-                                     font=THEME["font_normal"], relief=tk.FLAT, width=7,
-                                     insertbackground=THEME["accent_green"])
-        self.cfg_bs_width.insert(0, str(bs_cfg.get("window_width", 1280)))
-        self.cfg_bs_width.pack(side=tk.LEFT, padx=(8, 2))
-        create_label(row_res, "×", style="dim", bg=THEME["bg_main"]).pack(side=tk.LEFT)
-        self.cfg_bs_height = tk.Entry(row_res, bg=THEME["bg_input"], fg=THEME["accent_blue"],
-                                      font=THEME["font_normal"], relief=tk.FLAT, width=7,
-                                      insertbackground=THEME["accent_green"])
-        self.cfg_bs_height.insert(0, str(bs_cfg.get("window_height", 720)))
-        self.cfg_bs_height.pack(side=tk.LEFT, padx=(2, 8))
-        create_label(row_res, "Рекомендуется: 1280×720", style="dim",
-                     bg=THEME["bg_main"]).pack(side=tk.LEFT)
-
-        create_separator(scroll).pack(fill=tk.X, pady=12)
-
-        # ── Бот настройки ──
-        create_label(scroll, "🤖 Бот", style="dim", bg=THEME["bg_main"]).pack(anchor="w", pady=(0, 4))
-
-        row4 = tk.Frame(scroll, bg=THEME["bg_main"])
-        row4.pack(fill=tk.X, pady=4)
-        create_label(row4, "Порог паттерна (0-1):", style="normal", bg=THEME["bg_main"], width=22, anchor="w").pack(side=tk.LEFT)
-        self.cfg_threshold = tk.Entry(row4, bg=THEME["bg_input"], fg=THEME["accent_blue"],
-                                      font=THEME["font_normal"], relief=tk.FLAT, width=8,
-                                      insertbackground=THEME["accent_green"])
-        self.cfg_threshold.insert(0, "0.8")
-        self.cfg_threshold.pack(side=tk.LEFT, padx=8)
-
-        row5 = tk.Frame(scroll, bg=THEME["bg_main"])
-        row5.pack(fill=tk.X, pady=4)
-        create_label(row5, "Пауза между действиями:", style="normal", bg=THEME["bg_main"], width=22, anchor="w").pack(side=tk.LEFT)
-        self.cfg_action_delay = tk.Entry(row5, bg=THEME["bg_input"], fg=THEME["accent_blue"],
-                                         font=THEME["font_normal"], relief=tk.FLAT, width=8,
-                                         insertbackground=THEME["accent_green"])
-        self.cfg_action_delay.insert(0, "1.0")
-        self.cfg_action_delay.pack(side=tk.LEFT, padx=8)
-
-        create_separator(scroll).pack(fill=tk.X, pady=12)
-
-        # Кнопка сохранить
-        create_button(scroll, "💾  Сохранить настройки",
-                      command=self._save_settings, style="start", width=26).pack(anchor="w")
-
-        self.settings_status = create_label(scroll, "", style="dim", bg=THEME["bg_main"])
-        self.settings_status.pack(anchor="w", pady=6)
-
-    def _save_settings(self):
-        import json
-        config_path = Path(__file__).parent.parent / "CONFIG" / "config.json"
-        try:
-            with open(config_path, encoding="utf-8") as f:
-                config = json.load(f)
-
-            config.setdefault("technical_config", {}).setdefault("adb_settings", {})
-            config["technical_config"]["adb_settings"]["timeout"] = float(self.cfg_timeout.get())
-            config["technical_config"]["adb_settings"]["max_wait"] = int(self.cfg_max_wait.get())
-            bs = config.setdefault("bluestacks", {})
-            bs["path"]          = self.cfg_bs_path.get()
-            bs["window_width"]  = int(self.cfg_bs_width.get())
-            bs["window_height"] = int(self.cfg_bs_height.get())
-            config.setdefault("bot_settings", {})["threshold"] = float(self.cfg_threshold.get())
-            config["bot_settings"]["action_delay"] = float(self.cfg_action_delay.get())
-
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2, ensure_ascii=False)
-
-            self.settings_status.config(text="✅ Настройки сохранены!", fg=THEME["accent_green"])
-        except Exception as e:
-            self.settings_status.config(text=f"❌ Ошибка: {e}", fg=THEME["accent_red"])
-
-    # ─────────────────────────────────────────────
-    # ВКЛАДКА: О ПРОГРАММЕ
-    # ─────────────────────────────────────────────
-
     def _build_about_tab(self):
         frame = self.frames["about"]
 
@@ -1415,11 +1146,100 @@ class BotMainWindow:
             self.root.after(0, lambda: self.header_status.config(
                 text="● РАБОТАЕТ", fg=THEME["accent_green"]
             ))
+            # Ждём загрузки игры и центрируем базу
+            threading.Thread(target=self._wait_and_center, daemon=True).start()
         else:
             self._set_status("❌ Ошибка при запуске игры", "error")
             self._set_stat("Игра", "❌ Ошибка", "error")
 
         self.root.after(0, lambda: self.start_btn.config(state=tk.NORMAL))
+
+    def _wait_and_center(self):
+        """Выполняет последовательность запуска из DEV настроек."""
+        import time
+        import json
+
+        # Загружаем параметры из base_constants.json
+        constants_path = Path(__file__).parent.parent / "CONFIG" / "base_constants.json"
+        try:
+            with open(constants_path, encoding="utf-8") as f:
+                cfg = json.load(f)
+        except Exception:
+            cfg = {}
+
+        wait_secs = int(cfg.get("startup_wait", 15))
+        steps = cfg.get("startup_steps", [
+            {"pattern": "(нет)", "action": "zoom_out"},
+            {"pattern": "(нет)", "action": "center_base"},
+        ])
+
+        self._set_status(f"⏳ Ждём загрузки игры ({wait_secs} сек)...", "info")
+        time.sleep(wait_secs)
+
+        if not self.adb.connected_device:
+            return
+
+        import cv2
+        patterns_dir = Path(__file__).parent / "processes" / "BOT" / "patterns"
+
+        for i, step in enumerate(steps):
+            pattern_name = step.get("pattern", "(нет)")
+            action = step.get("action", "skip")
+
+            self._set_status(f"🚀 Шаг {i+1}: паттерн='{pattern_name}' → {action}", "info")
+
+            # Если паттерн задан — ждём его появления
+            if pattern_name and pattern_name != "(нет)":
+                pattern_path = patterns_dir / f"{pattern_name}.png"
+                template = cv2.imread(str(pattern_path)) if pattern_path.exists() else None
+
+                if template is not None:
+                    found = False
+                    for attempt in range(24):  # до 2 минут
+                        try:
+                            from processes.BOT.bot_01_screenshot import BotScreenshot
+                            ss = BotScreenshot(self.adb.connected_device, None)
+                            frame = ss.capture()
+                            if frame is not None:
+                                res = cv2.matchTemplate(frame, template, cv2.TM_CCOEFF_NORMED)
+                                _, max_val, _, max_loc = cv2.minMaxLoc(res)
+                                if max_val >= 0.7:
+                                    found = True
+                                    self._set_status(f"✅ Паттерн '{pattern_name}' найден ({max_val:.2f})", "success")
+                                    # Если действие — нажать на паттерн
+                                    if action == "tap":
+                                        h, w = template.shape[:2]
+                                        cx = max_loc[0] + w // 2
+                                        cy = max_loc[1] + h // 2
+                                        from processes.SCENARIO.scenario_04_adb_actions import do_tap
+                                        do_tap(self.adb.connected_device, cx, cy)
+                                        time.sleep(1)
+                                    break
+                        except Exception:
+                            pass
+                        time.sleep(5)
+
+                    if not found:
+                        self._set_status(f"⚠ Паттерн '{pattern_name}' не найден, пропускаем шаг", "warning")
+                        continue
+
+            # Выполняем действие
+            if action == "zoom_out":
+                if hasattr(self, "_base_zoom_out"):
+                    self._base_zoom_out()
+                    time.sleep(1)
+            elif action == "zoom_in":
+                if hasattr(self, "_base_zoom_in"):
+                    self._base_zoom_in()
+                    time.sleep(1)
+            elif action == "center_base":
+                self._set_status("🎯 Центрируем базу...", "info")
+                if hasattr(self, "_base_find_center"):
+                    self._base_find_center()
+            elif action == "wait_5s":
+                time.sleep(5)
+            elif action == "tap":
+                pass  # уже выполнено выше при нахождении паттерна
 
     def _resize_bluestacks_window(self, width: int, height: int):
         """Изменяет размер окна BlueStacks через win32api"""
@@ -1522,6 +1342,16 @@ class BotMainWindow:
     def _ui_end(self):
         self.check_btn.config(state=tk.NORMAL, fg=THEME["accent_blue"])
         self.progress_bar.config(bg=THEME["accent_blue"])
+
+
+def _parse_number(value: str):
+    """Преобразует строку в int или float. Если не получается — возвращает строку."""
+    try:
+        if "." in value:
+            return float(value)
+        return int(value)
+    except (ValueError, TypeError):
+        return value
 
 
 def main():

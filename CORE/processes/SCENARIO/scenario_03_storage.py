@@ -29,10 +29,15 @@ class ScenarioStorage:
         """Загружает шаги сценария по имени."""
         path = SCENARIOS_DIR / f"{name}.json"
         if not path.exists():
+            # GAP Req 4.3: returns [] silently; requirement says caller should log
+            # "Файл сценария не найден" to BotLog. The storage layer has no log_callback,
+            # so the caller (ScenarioEditor._on_scenario_change) must handle this.
             return []
         try:
             return json.loads(path.read_text(encoding="utf-8"))
         except Exception:
+            # GAP Req 4.4: returns [] silently on bad JSON; requirement says caller should
+            # log an error message to BotLog. Same note: caller must handle this.
             return []
 
     @staticmethod
