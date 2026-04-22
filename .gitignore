@@ -53,6 +53,10 @@ $RECYCLE.BIN/
 logs/
 CORE/temp/
 
+# Empty artifact folders
+TESTS/logs/
+TESTS/TESTS/
+
 # Game screenshots / pattern sources (large binary files, not needed on GitHub)
 Фото всего из игры/
 
