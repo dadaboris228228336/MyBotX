@@ -31,7 +31,8 @@ class BSProcess04Control:
             return True, "BlueStacks уже запущен"
 
         try:
-            subprocess.Popen([bluestacks_path], shell=True)
+            subprocess.Popen([bluestacks_path], shell=True,
+                             creationflags=subprocess.CREATE_NO_WINDOW)
             return True, "BlueStacks запущен"
         except Exception as e:
             return False, f"Ошибка запуска: {str(e)}"

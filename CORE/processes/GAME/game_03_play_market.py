@@ -55,7 +55,8 @@ class GameProcess03PlayMarket:
                                     capture_output=True,
                                     text=True,
                                     timeout=10,
-                                    check=False)
+                                    check=False,
+                                    creationflags=subprocess.CREATE_NO_WINDOW)
 
             if result.returncode == 0:
                 log_callback("✅ Play Market открыт")

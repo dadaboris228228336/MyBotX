@@ -50,3 +50,9 @@ $RECYCLE.BIN/
 # Session logs (auto-deleted on close)
 logs/
 CORE/temp/
+
+# Game screenshots / pattern sources (large binary files, not needed on GitHub)
+Фото всего из игры/
+
+# Kiro spec configs (internal)
+.kiro/

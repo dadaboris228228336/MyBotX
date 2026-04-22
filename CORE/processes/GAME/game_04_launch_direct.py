@@ -47,7 +47,8 @@ class GameProcess04LaunchDirect:
                 capture_output=True,
                 text=True,
                 timeout=15,
-                check=False
+                check=False,
+                creationflags=subprocess.CREATE_NO_WINDOW
             )
 
             if "Error" not in result.stderr and result.returncode == 0:

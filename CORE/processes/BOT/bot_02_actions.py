@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-⚔️ BOT/bot_04_actions.py
-Логика: Готовые действия для Clash of Clans.
-        Объединяет screenshot + find_pattern + tap в одну цепочку.
-        Пауза между действиями берётся из CONFIG/config.json → bot_settings.action_delay
+⚔️ BOT/bot_02_actions.py
+Оркестрация действий Clash of Clans.
+Делегирует захват экрана → SCREENSHOT, поиск паттернов → OPENCV, нажатия → BotTap.
 """
 
 import time
 import json
 from pathlib import Path
-from .bot_01_screenshot import BotScreenshot
-from .bot_02_find_pattern import BotFindPattern
-from .bot_03_tap import BotTap
+
+from ..SCREENSHOT import ScreenshotCapture
+from ..OPENCV import TemplateMatch
+from .bot_01_tap import BotTap
+
+PATTERNS_DIR = Path(__file__).parent / "patterns"
 
 
 def _load_settings() -> dict:
@@ -27,33 +29,23 @@ def _load_settings() -> dict:
 
 
 class BotActions:
-    """Готовые действия для Clash of Clans"""
+    """Готовые действия для Clash of Clans."""
 
     def __init__(self, device_serial: str, log_callback=None):
         self.device = device_serial
         self.log = log_callback or print
-        self.screenshot = BotScreenshot(device_serial, log_callback)
-        self.finder = BotFindPattern(log_callback)
+        self.screenshot = ScreenshotCapture(device_serial, log_callback)
+        self.finder = TemplateMatch(PATTERNS_DIR, log_callback)
         self.tap = BotTap(device_serial, log_callback)
 
-        # Загружаем настройки
         settings = _load_settings()
         self.threshold = float(settings.get("threshold", 0.8))
         self.action_delay = float(settings.get("action_delay", 1.0))
         self.log(f"⚙️ Настройки бота: порог={self.threshold}, пауза={self.action_delay}с")
 
-    def find_and_tap(self, pattern_name: str, threshold: float = 0.8, wait_after: float = 1.0) -> bool:
-        """
-        Универсальный метод: скриншот → найти паттерн → нажать.
-
-        Args:
-            pattern_name: имя паттерна из папки patterns/
-            threshold:    порог совпадения (0.8 = 80%)
-            wait_after:   пауза после нажатия в секундах
-
-        Returns:
-            True если нашёл и нажал, False если не нашёл
-        """
+    def find_and_tap(self, pattern_name: str, threshold: float = 0.8,
+                     wait_after: float = 1.0) -> bool:
+        """Скриншот → найти паттерн → нажать. True если нашёл и нажал."""
         self.log(f"🔍 Ищем: {pattern_name}")
         screen = self.screenshot.capture()
         if screen is None:
@@ -67,12 +59,7 @@ class BotActions:
 
     def wait_for_pattern(self, pattern_name: str, timeout: float = 30.0,
                          interval: float = 2.0, threshold: float = 0.8) -> tuple | None:
-        """
-        Ждёт появления паттерна на экране.
-
-        Returns:
-            (x, y) когда паттерн появился, None если timeout
-        """
+        """Ждёт появления паттерна. Возвращает (x,y) или None при таймауте."""
         self.log(f"⏳ Ждём появления: {pattern_name} (макс {timeout}с)")
         elapsed = 0
         while elapsed < timeout:
@@ -88,12 +75,8 @@ class BotActions:
         self.log(f"❌ Паттерн не появился за {timeout}с: {pattern_name}")
         return None
 
-    # ─────────────────────────────────────────────
-    # ДЕЙСТВИЯ CLASH OF CLANS
-    # ─────────────────────────────────────────────
-
     def collect_resources(self) -> bool:
-        """Сбор ресурсов — нажать на все шахты/фермы"""
+        """Сбор ресурсов — нажать на все шахты/фермы."""
         self.log("💰 Сбор ресурсов...")
         screen = self.screenshot.capture()
         if screen is None:
@@ -110,10 +93,10 @@ class BotActions:
         return collected > 0
 
     def start_attack(self) -> bool:
-        """Начать атаку — нажать кнопку Attack"""
+        """Начать атаку."""
         self.log("⚔️ Начинаем атаку...")
         return self.find_and_tap("btn_attack", wait_after=2.0)
 
     def close_popup(self) -> bool:
-        """Закрыть всплывающее окно"""
+        """Закрыть всплывающее окно."""
         return self.find_and_tap("btn_close", threshold=0.75, wait_after=0.5)

@@ -41,6 +41,18 @@ from .DEPENDENCIES import (
     DepProcess04Install,
 )
 
+# Screenshot capture (новый модуль)
+from .SCREENSHOT import ScreenshotCapture, BotScreenshot
+
+# OpenCV image processing (новый модуль)
+from .OPENCV import TemplateMatch, resize, to_grayscale, threshold, scale_up
+
+# OCR text recognition (новый модуль)
+from .OCR import OCRReader, parse_number, parse_timer
+
+# BOT orchestration
+from .BOT import BotTap, BotActions
+
 __all__ = [
     # ADB Manager Processes (4 процесса)
     'ADBProcess01Init',
@@ -68,4 +80,24 @@ __all__ = [
     'DepProcess02Parse',
     'DepProcess03Check',
     'DepProcess04Install',
+
+    # Screenshot
+    'ScreenshotCapture',
+    'BotScreenshot',
+
+    # OpenCV
+    'TemplateMatch',
+    'resize',
+    'to_grayscale',
+    'threshold',
+    'scale_up',
+
+    # OCR
+    'OCRReader',
+    'parse_number',
+    'parse_timer',
+
+    # BOT
+    'BotTap',
+    'BotActions',
 ]

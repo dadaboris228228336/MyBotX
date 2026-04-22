@@ -19,7 +19,8 @@ def _get_adb() -> str:
 
 def _run(device: str, args: list, timeout: int = 10):
     return subprocess.run([_get_adb(), "-s", device, *args],
-                         capture_output=True, timeout=timeout)
+                         capture_output=True, timeout=timeout,
+                         creationflags=subprocess.CREATE_NO_WINDOW)
 
 
 def do_tap(device: str, x: int, y: int):
@@ -146,11 +147,10 @@ def do_find_and_tap(device: str, pattern: str, threshold: float,
     Делает скриншот, ищет паттерн через OpenCV, кликает если нашёл.
     Повторяет retries раз с паузой retry_delay секунд.
     Возвращает True если нашёл и нажал.
+    Делегирует захват экрана → SCREENSHOT, поиск → OPENCV.
     """
-    import subprocess, io
-    import numpy as np
-    import cv2
-    from PIL import Image
+    from ..SCREENSHOT import ScreenshotCapture
+    from ..OPENCV import TemplateMatch
 
     pattern_path = PATTERNS_DIR / f"{pattern}.png"
     if not pattern_path.exists():
@@ -158,47 +158,26 @@ def do_find_and_tap(device: str, pattern: str, threshold: float,
             log(f"  ❌ Паттерн не найден: {pattern}.png", "error")
         return False
 
-    template = cv2.imread(str(pattern_path))
-    if template is None:
-        if log:
-            log(f"  ❌ Не удалось загрузить: {pattern}.png", "error")
-        return False
+    screenshotter = ScreenshotCapture(device, log)
+    matcher = TemplateMatch(PATTERNS_DIR, log)
 
     for attempt in range(1, retries + 1):
-        # Скриншот
-        result = _run(device, ["exec-out", "screencap", "-p"], timeout=15)
-        if result.returncode != 0:
+        screen = screenshotter.capture()
+        if screen is None:
             if log:
                 log("  ❌ Ошибка скриншота", "error")
             return False
 
-        img = Image.open(io.BytesIO(result.stdout)).convert("RGB")
-        screen = np.array(img)[:, :, ::-1]
-
-        # Проверяем размеры
-        if (template.shape[0] > screen.shape[0] or
-                template.shape[1] > screen.shape[1]):
-            if log:
-                log(f"  ❌ Паттерн больше экрана! "
-                    f"Паттерн: {template.shape[1]}x{template.shape[0]}, "
-                    f"Экран: {screen.shape[1]}x{screen.shape[0]}", "error")
-            return False
-
-        # Template matching
-        res = cv2.matchTemplate(screen, template, cv2.TM_CCOEFF_NORMED)
-        _, max_val, _, max_loc = cv2.minMaxLoc(res)
-
-        if max_val >= threshold:
-            h, w = template.shape[:2]
-            cx = max_loc[0] + w // 2
-            cy = max_loc[1] + h // 2
+        coords = matcher.find(screen, pattern, threshold)
+        if coords is not None:
+            cx, cy = coords
             do_tap(device, cx, cy)
             if log:
-                log(f"  ✅ '{pattern}' найден ({max_val:.2f}) → tap ({cx},{cy})", "success")
+                log(f"  ✅ '{pattern}' найден → tap ({cx},{cy})", "success")
             return True
 
         if log:
-            log(f"  ⚠ попытка {attempt}/{retries}: '{pattern}' не найден ({max_val:.2f})", "warning")
+            log(f"  ⚠ попытка {attempt}/{retries}: '{pattern}' не найден", "warning")
         if attempt < retries:
             time.sleep(retry_delay)
 

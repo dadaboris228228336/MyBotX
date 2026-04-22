@@ -414,7 +414,7 @@ class BotMainWindow:
 
     def _bot_screenshot_thread(self):
         try:
-            from processes.BOT.bot_01_screenshot import BotScreenshot
+            from processes.SCREENSHOT import ScreenshotCapture as BotScreenshot
             from PIL import Image, ImageTk
             import io
 
@@ -641,7 +641,7 @@ class BotMainWindow:
 
     def _bot_collect_thread(self):
         try:
-            from processes.BOT.bot_04_actions import BotActions
+            from processes.BOT.bot_02_actions import BotActions
             actions = BotActions(self.adb.connected_device, self._bot_log)
             actions.collect_resources()
         except Exception as e:
@@ -655,7 +655,7 @@ class BotMainWindow:
 
     def _bot_attack_thread(self):
         try:
-            from processes.BOT.bot_04_actions import BotActions
+            from processes.BOT.bot_02_actions import BotActions
             actions = BotActions(self.adb.connected_device, self._bot_log)
             actions.start_attack()
         except Exception as e:
@@ -669,7 +669,7 @@ class BotMainWindow:
 
     def _bot_close_thread(self):
         try:
-            from processes.BOT.bot_04_actions import BotActions
+            from processes.BOT.bot_02_actions import BotActions
             actions = BotActions(self.adb.connected_device, self._bot_log)
             actions.close_popup()
         except Exception as e:
@@ -1350,7 +1350,7 @@ class BotMainWindow:
 
     def _screenshot_thread(self):
         try:
-            from processes.BOT.bot_01_screenshot import BotScreenshot
+            from processes.SCREENSHOT import ScreenshotCapture as BotScreenshot
             from pathlib import Path
             import time
             sc = BotScreenshot(self.adb.connected_device, self._log_direct)

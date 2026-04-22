@@ -48,7 +48,8 @@ class GameProcess02CheckApp:
                                     capture_output=True,
                                     text=True,
                                     timeout=10,
-                                    check=False)
+                                    check=False,
+                                    creationflags=subprocess.CREATE_NO_WINDOW)
 
             if result.returncode == 0 and package in result.stdout:
                 log_callback("✅ Установлено")
